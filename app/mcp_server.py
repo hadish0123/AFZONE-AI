@@ -80,7 +80,7 @@ def _error(exc: Exception) -> dict[str, Any]:
     return {"ok": False, "error": str(exc)}
 
 
-@mcp.tool(annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True, idempotent_hint=False, open_world_hint=False))
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=False, openWorldHint=False))
 async def panel_request(
     method: Literal["GET", "POST", "PUT", "PATCH", "DELETE"],
     path: str,
@@ -98,7 +98,7 @@ async def panel_request(
         return _error(exc)
 
 
-@mcp.tool(annotations=ToolAnnotations(read_only_hint=True, idempotent_hint=True, open_world_hint=False))
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, idempotentHint=True, openWorldHint=False))
 async def list_resource(resource: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
     """List a core PasarGuard resource: admins, users, groups, hosts, nodes, cores, user_templates, client_templates, admin_roles, api_keys."""
     try:
@@ -110,7 +110,7 @@ async def list_resource(resource: str, params: dict[str, Any] | None = None) -> 
         return _error(exc)
 
 
-@mcp.tool(annotations=ToolAnnotations(read_only_hint=True, idempotent_hint=True, open_world_hint=False))
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, idempotentHint=True, openWorldHint=False))
 async def get_resource(resource: str, resource_id: int, params: dict[str, Any] | None = None) -> dict[str, Any]:
     """Get one PasarGuard resource by numeric ID."""
     try:
@@ -122,7 +122,7 @@ async def get_resource(resource: str, resource_id: int, params: dict[str, Any] |
         return _error(exc)
 
 
-@mcp.tool(annotations=ToolAnnotations(read_only_hint=False, destructive_hint=False, idempotent_hint=False, open_world_hint=False))
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False))
 async def create_resource(resource: str, body: dict[str, Any], confirm: bool = False) -> dict[str, Any]:
     """Create a PasarGuard resource. Requires explicit user confirmation via confirm=true."""
     try:
@@ -136,7 +136,7 @@ async def create_resource(resource: str, body: dict[str, Any], confirm: bool = F
         return _error(exc)
 
 
-@mcp.tool(annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True, idempotent_hint=False, open_world_hint=False))
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=False, openWorldHint=False))
 async def update_resource(
     resource: str,
     resource_id: int,
@@ -156,7 +156,7 @@ async def update_resource(
         return _error(exc)
 
 
-@mcp.tool(annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True, idempotent_hint=False, open_world_hint=False))
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=False, openWorldHint=False))
 async def delete_resource(resource: str, resource_id: int, confirm: bool = False) -> dict[str, Any]:
     """Delete a PasarGuard resource by ID. Always requires explicit user confirmation via confirm=true."""
     try:
@@ -171,7 +171,7 @@ async def delete_resource(resource: str, resource_id: int, confirm: bool = False
         return _error(exc)
 
 
-@mcp.tool(annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True, idempotent_hint=False, open_world_hint=False))
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=False, openWorldHint=False))
 async def run_action(
     resource: str,
     resource_id: int,
@@ -191,7 +191,7 @@ async def run_action(
         return _error(exc)
 
 
-@mcp.tool(annotations=ToolAnnotations(read_only_hint=True, idempotent_hint=True, open_world_hint=False))
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, idempotentHint=True, openWorldHint=False))
 async def get_panel_info(name: str) -> dict[str, Any]:
     """Read settings/system/inbound/worker information. Names: settings, general_settings, system, system_resources, system_users, inbounds, inbound_details, wireguard_subnets, workers_health."""
     try:
@@ -201,7 +201,7 @@ async def get_panel_info(name: str) -> dict[str, Any]:
         return _error(exc)
 
 
-@mcp.tool(annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True, idempotent_hint=False, open_world_hint=False))
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=False, openWorldHint=False))
 async def update_settings(body: dict[str, Any], confirm: bool = False) -> dict[str, Any]:
     """Update PasarGuard settings. Requires explicit user confirmation via confirm=true."""
     path = "/api/settings"
@@ -213,7 +213,7 @@ async def update_settings(body: dict[str, Any], confirm: bool = False) -> dict[s
         return _error(exc)
 
 
-@mcp.tool(annotations=ToolAnnotations(read_only_hint=True, idempotent_hint=True, open_world_hint=False))
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, idempotentHint=True, openWorldHint=False))
 async def panel_overview() -> dict[str, Any]:
     """Return a compact overview of admins, users, nodes, groups, hosts, and system health."""
     client = PasarGuardClient()
