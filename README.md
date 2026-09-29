@@ -1,12 +1,13 @@
 # AFZONE-AI
 
-Private ChatGPT/MCP control plane for PasarGuard. This repository is intentionally separate from PasarGuard and PasarGuard-Node; it does not patch either project.
+Private ChatGPT/MCP control plane for PasarGuard. This project is separate from PasarGuard and PasarGuard-Node and does not patch either codebase.
 
 ## Architecture
 
 ```text
 ChatGPT Plugin
       |
+      | OAuth 2.1 + PKCE
       v
 AFZONE-AI MCP Gateway (Railway)
       |
@@ -18,27 +19,31 @@ PasarGuard Central API
 PasarGuard Nodes / Xray
 ```
 
-## Current scope
+## Capabilities
 
 - Full operational access to PasarGuard `/api/*` through a guarded generic tool
 - CRUD helpers for admins, users, groups, hosts, nodes, cores, templates, roles, and API-key metadata
-- Node actions and health/statistics
-- Settings and system information
+- Node actions, usage, health and statistics
+- Settings and system operations
 - Explicit confirmation required for every mutation
-- Authentication/setup endpoints intentionally blocked
-- Sensitive fields redacted from tool responses
+- Setup/login endpoints intentionally blocked
+- Sensitive values redacted from MCP tool responses
+- OAuth 2.1 authorization for ChatGPT with dynamic client registration and PKCE
 - Railway-ready Streamable HTTP MCP endpoint at `/mcp`
 
-## Local configuration
+## Environment
 
-Copy `.env.example` to `.env` and set:
+Configure these values only in Railway or a local `.env` file. Never commit real credentials.
 
 - `PASARGUARD_BASE_URL`
 - `PASARGUARD_API_KEY`
-- `AFZONE_GATEWAY_TOKEN`
+- `AFZONE_PUBLIC_URL`
+- `AFZONE_OAUTH_USERNAME`
+- `AFZONE_OAUTH_PASSWORD`
+- `AFZONE_OAUTH_SCOPE`
 - `REQUEST_TIMEOUT_SECONDS`
 
-Never commit real credentials.
+`AFZONE_OAUTH_PASSWORD` is the password used when connecting ChatGPT to this private plugin. It is independent of both the PasarGuard owner password and PasarGuard API key.
 
 ## Run
 
@@ -47,9 +52,11 @@ pip install -e '.[dev]'
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-Health check: `GET /health`
-MCP endpoint: `/mcp`
+- Health: `GET /health`
+- PasarGuard connectivity: `GET /pasarguard_health`
+- MCP: `/mcp`
+- OAuth metadata and endpoints are exposed by the MCP SDK on the same host.
 
-## ChatGPT plugin package
+## ChatGPT plugin
 
-`plugin/` contains the private plugin manifest and PasarGuard management skill. After Railway deployment, copy `plugin/mcp.json.example` to `plugin/mcp.json` and replace the placeholder with the generated HTTPS Railway domain. Authentication is configured at connection time; secrets must never be embedded in `mcp.json`.
+`plugin/` contains the private Agent Plugin package. Its `mcp.json` points to the deployed Railway MCP endpoint and contains no secrets. Authentication is completed through OAuth when the plugin is connected in ChatGPT.

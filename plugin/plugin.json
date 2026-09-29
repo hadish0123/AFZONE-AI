@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "afzone-ai",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Private ChatGPT control plane for a PasarGuard installation through a separately deployed MCP gateway.",
   "author": {"name": "AFZONE"},
   "repository": "https://github.com/hadish0123/AFZONE-AI",

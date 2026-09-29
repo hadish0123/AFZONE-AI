@@ -1,11 +1,11 @@
 [project]
 name = "afzone-ai"
-version = "0.2.0"
+version = "0.3.0"
 description = "Private ChatGPT/MCP gateway for full PasarGuard management"
 requires-python = ">=3.12"
 dependencies = [
   "httpx>=0.28,<1",
-  "mcp>=1.12.4,<2",
+  "mcp>=1.30,<2",
   "pydantic-settings>=2.7,<3",
   "starlette>=0.46,<1",
   "uvicorn[standard]>=0.34,<1",

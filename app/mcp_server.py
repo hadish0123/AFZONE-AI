@@ -1,10 +1,23 @@
 import asyncio
 from typing import Any, Literal
 
+from pydantic import AnyHttpUrl
+from starlette.exceptions import HTTPException
+from starlette.requests import Request
+from starlette.responses import Response
+
+from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions, RevocationOptions
 from mcp.server.fastmcp import FastMCP
 
 from .catalog import ACTIONS, READ_ONLY_PATHS, RESOURCE_ROUTES
+from .config import get_settings
+from .oauth_provider import SingleUserOAuthProvider
 from .pasarguard import PasarGuardClient, PasarGuardError, validate_api_path
+
+settings = get_settings()
+public_url = str(settings.public_url).rstrip("/")
+resource_url = f"{public_url}/mcp"
+oauth_provider = SingleUserOAuthProvider(settings)
 
 mcp = FastMCP(
     name="AFZONE PasarGuard Manager",
@@ -15,7 +28,33 @@ mcp = FastMCP(
     ),
     stateless_http=True,
     json_response=True,
+    auth_server_provider=oauth_provider,
+    auth=AuthSettings(
+        issuer_url=AnyHttpUrl(public_url),
+        client_registration_options=ClientRegistrationOptions(
+            enabled=True,
+            valid_scopes=[settings.oauth_scope],
+            default_scopes=[settings.oauth_scope],
+        ),
+        revocation_options=RevocationOptions(enabled=True),
+        required_scopes=[settings.oauth_scope],
+        resource_server_url=AnyHttpUrl(resource_url),
+        validate_token_resource=True,
+    ),
 )
+
+
+@mcp.custom_route("/login", methods=["GET"])
+async def login_page(request: Request) -> Response:
+    state = request.query_params.get("state")
+    if not state:
+        raise HTTPException(400, "Missing state")
+    return await oauth_provider.login_page(state)
+
+
+@mcp.custom_route("/login/callback", methods=["POST"])
+async def login_callback(request: Request) -> Response:
+    return await oauth_provider.login_callback(request)
 
 
 def _confirmation(method: str, path: str, payload: Any = None) -> dict[str, Any]:
@@ -31,7 +70,12 @@ def _confirmation(method: str, path: str, payload: Any = None) -> dict[str, Any]
 
 def _error(exc: Exception) -> dict[str, Any]:
     if isinstance(exc, PasarGuardError):
-        return {"ok": False, "error": str(exc), "status_code": exc.status_code, "detail": exc.detail}
+        return {
+            "ok": False,
+            "error": str(exc),
+            "status_code": exc.status_code,
+            "detail": exc.detail,
+        }
     return {"ok": False, "error": str(exc)}
 
 
@@ -148,7 +192,7 @@ async def run_action(
 
 @mcp.tool()
 async def get_panel_info(name: str) -> dict[str, Any]:
-    """Read settings/system/inbound/worker information."""
+    """Read settings/system/inbound/worker information. Names: settings, general_settings, system, system_resources, system_users, inbounds, inbound_details, wireguard_subnets, workers_health."""
     try:
         path = READ_ONLY_PATHS[name]
         return await PasarGuardClient().request("GET", path)
@@ -170,7 +214,7 @@ async def update_settings(body: dict[str, Any], confirm: bool = False) -> dict[s
 
 @mcp.tool()
 async def panel_overview() -> dict[str, Any]:
-    """Return a compact overview of admins, users, nodes, groups, hosts, and worker health."""
+    """Return a compact overview of admins, users, nodes, groups, hosts, and system health."""
     client = PasarGuardClient()
     calls = {
         "admins": client.request("GET", "/api/admins", params={"limit": 1}),
