@@ -59,7 +59,7 @@ async def lifespan(_: Starlette):
 app = Starlette(
     routes=[
         Route("/health", health, methods=["GET"]),
-        Route("/pasarguard-health", pasarguard_health, methods=["GET"]),
+        Route("/pasarguard_health", pasarguard_health, methods=["GET"]),
         Mount("/", app=mcp_app),
     ],
     lifespan=lifespan,
