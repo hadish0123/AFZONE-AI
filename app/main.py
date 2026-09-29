@@ -8,11 +8,28 @@ from starlette.routing import Mount, Route
 
 from .config import get_settings
 from .mcp_server import mcp
-from .pasarguard import gateway_token_matches
+from .pasarguard import PasarGuardClient, PasarGuardError, gateway_token_matches
 
 
 async def health(_: Request) -> JSONResponse:
-    return JSONResponse({"ok": True, "service": "afzone-ai", "version": "0.2.0"})
+    return JSONResponse({"ok": True, "service": "afzone-ai", "version": "0.2.1"})
+
+
+async def pasarguard_health(_: Request) -> JSONResponse:
+    """Minimal upstream/auth check. Never returns PasarGuard response data or credentials."""
+    try:
+        await PasarGuardClient().request("GET", "/api/admin")
+        return JSONResponse({"ok": True, "pasarguard": "connected"})
+    except PasarGuardError as exc:
+        return JSONResponse(
+            {"ok": False, "pasarguard": "unavailable", "upstream_status": exc.status_code},
+            status_code=503,
+        )
+    except Exception:
+        return JSONResponse(
+            {"ok": False, "pasarguard": "unavailable"},
+            status_code=503,
+        )
 
 
 class GatewayAuthMiddleware(BaseHTTPMiddleware):
@@ -42,6 +59,7 @@ async def lifespan(_: Starlette):
 app = Starlette(
     routes=[
         Route("/health", health, methods=["GET"]),
+        Route("/pasarguard-health", pasarguard_health, methods=["GET"]),
         Mount("/", app=mcp_app),
     ],
     lifespan=lifespan,
