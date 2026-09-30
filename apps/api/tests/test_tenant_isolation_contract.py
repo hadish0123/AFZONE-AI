@@ -19,6 +19,7 @@ def function_block(source: str, name: str) -> str:
 def test_owner_only_control_plane_routes_stay_owner_only():
     for name in (
         "create_admin",
+        "hard_delete_admin",
         "list_connections",
         "create_connection",
         "sync_groups",
@@ -133,3 +134,30 @@ def test_deleted_clients_are_hidden_from_current_panel_views():
 def test_deleted_client_username_can_be_recreated():
     block = function_block(MAIN, "create_client")
     assert 'Client.remote_payload["deleted_remote"].astext.is_distinct_from("true")' in block
+
+
+def test_hard_delete_admin_purges_tenant_owned_data_and_remote_clients():
+    block = function_block(MAIN, "hard_delete_admin")
+    assert "Depends(require_owner)" in block
+    assert "delete_user(client.username)" in block
+    assert "delete_webhook(drop_pending_updates=True)" in block
+    assert "delete(BillingEvent)" in block
+    assert "delete(Payment)" in block
+    assert "delete(Order)" in block
+    assert "delete(Customer)" in block
+    assert "delete(Client)" in block
+    assert "delete(TelegramBot)" in block
+    assert "delete(WalletTransaction)" in block
+    assert "delete(Wallet)" in block
+    assert "delete(PaymentProfile)" in block
+    assert "delete(BankCard)" in block
+    assert "delete(AuthSession)" in block
+    assert "delete(UserSecurity)" in block
+    assert "await db.delete(admin)" in block
+
+
+def test_owner_panel_requires_username_confirmation_for_hard_admin_delete():
+    web_source = (ROOT.parent / "web" / "components" / "PrimePanelV2.tsx").read_text(encoding="utf-8")
+    assert "حذف دائمی نماینده" in web_source
+    assert "confirm_username" in web_source
+    assert "/hard" in web_source
