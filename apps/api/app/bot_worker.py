@@ -40,6 +40,7 @@ from app.services.commerce import (
     create_customer_gateway_topup,
     create_gateway_order_payment,
     create_order,
+    default_bank_card,
     get_or_create_customer,
     pay_order_from_customer_wallet,
 )
@@ -302,6 +303,7 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
             profile = await db.scalar(
                 select(PaymentProfile).where(PaymentProfile.owner_user_id == bot_row.admin_id)
             )
+            card = await default_bank_card(db, bot_row.admin_id)
         if not row:
             await target.answer("پلن در دسترس نیست.")
             return
@@ -319,7 +321,7 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
         kb = InlineKeyboardBuilder()
         if bot_row.customer_wallet_enabled:
             kb.button(text="💰 پرداخت از کیف پول", callback_data="pay:wallet")
-        if bot_row.card_to_card_enabled and profile and profile.card_to_card_enabled and profile.card_number:
+        if bot_row.card_to_card_enabled and card:
             kb.button(text="💳 کارت به کارت", callback_data="pay:card")
         if bot_row.gateway_enabled and profile and profile.gateway_enabled:
             kb.button(text="🌐 درگاه پرداخت", callback_data="pay:gateway")
@@ -467,18 +469,16 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
                     )
                 elif method == PaymentMethod.CARD_TO_CARD:
                     payment = await create_card_order_payment(db, order)
-                    profile = await db.scalar(
-                        select(PaymentProfile).where(PaymentProfile.owner_user_id == bot_row.admin_id)
-                    )
+                    card = await default_bank_card(db, bot_row.admin_id)
                     await db.commit()
                     await state.update_data(payment_id=str(payment.id))
                     await state.set_state(SaleFlow.waiting_order_receipt)
                     await callback.message.answer(
                         "💳 مبلغ را کارت‌به‌کارت کنید و تصویر رسید را همینجا ارسال کنید.\n\n"
                         f"مبلغ: {money_text(payment.amount_toman)}\n"
-                        f"شماره کارت: {profile.card_number}\n"
-                        f"به نام: {profile.card_holder_name or '-'}\n"
-                        f"{profile.card_instructions or ''}"
+                        f"شماره کارت: {card.card_number if card else '-'}\n"
+                        f"به نام: {(card.card_holder_name if card else None) or '-'}\n"
+                        f"{(card.instructions if card else None) or ''}"
                     )
                 else:
                     payment, gateway = await create_gateway_order_payment(db, order)
@@ -645,9 +645,10 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
             profile = await db.scalar(
                 select(PaymentProfile).where(PaymentProfile.owner_user_id == bot_row.admin_id)
             )
+            card = await default_bank_card(db, bot_row.admin_id)
         await state.update_data(topup_amount=str(amount))
         kb = InlineKeyboardBuilder()
-        if bot_row.card_to_card_enabled and profile and profile.card_to_card_enabled and profile.card_number:
+        if bot_row.card_to_card_enabled and card:
             kb.button(text="💳 کارت به کارت", callback_data="topup:card")
         if bot_row.gateway_enabled and profile and profile.gateway_enabled:
             kb.button(text="🌐 درگاه پرداخت", callback_data="topup:gateway")
@@ -675,17 +676,15 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
                     payment = await create_customer_card_topup(
                         db, customer=customer, amount_toman=amount
                     )
-                    profile = await db.scalar(
-                        select(PaymentProfile).where(PaymentProfile.owner_user_id == bot_row.admin_id)
-                    )
+                    card = await default_bank_card(db, bot_row.admin_id)
                     await db.commit()
                     await state.update_data(payment_id=str(payment.id))
                     await state.set_state(SaleFlow.wallet_topup_receipt)
                     await callback.message.answer(
                         "مبلغ را واریز و رسید را ارسال کنید.\n\n"
                         f"مبلغ: {money_text(amount)}\n"
-                        f"شماره کارت: {profile.card_number}\n"
-                        f"به نام: {profile.card_holder_name or '-'}"
+                        f"شماره کارت: {card.card_number if card else '-'}\n"
+                        f"به نام: {(card.card_holder_name if card else None) or '-'}"
                     )
                 elif method == "gateway":
                     payment, gateway = await create_customer_gateway_topup(
