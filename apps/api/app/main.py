@@ -1425,7 +1425,11 @@ async def _resolve_bot_admin(
     if not requested_admin_id:
         raise HTTPException(status_code=400, detail="admin_id is required")
     admin = await db.scalar(
-        select(User).where(User.id == requested_admin_id, User.role == Role.ADMIN)
+        select(User).where(
+            User.id == requested_admin_id,
+            User.role == Role.ADMIN,
+            User.status == AccountStatus.ACTIVE,
+        )
     )
     if not admin:
         raise HTTPException(status_code=404, detail="admin not found")
@@ -2337,7 +2341,11 @@ async def _resolve_order_admin(
     if not requested_admin_id:
         raise HTTPException(status_code=400, detail="admin_id is required")
     admin = await db.scalar(
-        select(User).where(User.id == requested_admin_id, User.role == Role.ADMIN)
+        select(User).where(
+            User.id == requested_admin_id,
+            User.role == Role.ADMIN,
+            User.status == AccountStatus.ACTIVE,
+        )
     )
     if not admin:
         raise HTTPException(status_code=404, detail="admin not found")
@@ -2844,19 +2852,23 @@ async def directory_clients(
     connection_ids = {row.connection_id for row in rows}
     group_ids = {row.group_id for row in rows}
 
-    admins_map = {}
-    if admin_ids:
-        admin_rows = (await db.execute(select(User).where(User.id.in_(admin_ids)))).scalars().all()
-        admins_map = {a.id: a.username for a in admin_rows}
+    if user.role == Role.OWNER:
+        admins_map = {}
+        if admin_ids:
+            admin_rows = (await db.execute(select(User).where(User.id.in_(admin_ids)))).scalars().all()
+            admins_map = {a.id: a.username for a in admin_rows}
 
-    connections_map = {}
-    if connection_ids:
-        connection_rows = (
-            await db.execute(
-                select(PasarGuardConnection).where(PasarGuardConnection.id.in_(connection_ids))
-            )
-        ).scalars().all()
-        connections_map = {item.id: item.name for item in connection_rows}
+        connections_map = {}
+        if connection_ids:
+            connection_rows = (
+                await db.execute(
+                    select(PasarGuardConnection).where(PasarGuardConnection.id.in_(connection_ids))
+                )
+            ).scalars().all()
+            connections_map = {item.id: item.name for item in connection_rows}
+    else:
+        admins_map = {user.id: user.username}
+        connections_map = {}
 
     groups_map = {}
     if group_ids:
