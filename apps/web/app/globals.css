@@ -450,3 +450,531 @@ body:has(.primeLoginPage){padding-bottom:0!important;background:#031329!importan
   .primeLoginButton>i{width:44px;height:44px}
   .primeLoginSecurity{gap:8px;font-size:8.5px}
 }
+
+
+/* PRIMEVPN dashboard reference */
+.v2App:has(.primeDashboard){
+  min-height:100svh;
+  background:
+    linear-gradient(rgba(22,105,201,.11) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(22,105,201,.11) 1px,transparent 1px),
+    radial-gradient(circle at 80% -5%,rgba(18,200,255,.18),transparent 25%),
+    radial-gradient(circle at 3% 28%,rgba(82,42,255,.13),transparent 31%),
+    linear-gradient(155deg,#061a3e 0%,#03162e 48%,#05152e 100%);
+  background-size:58px 58px,58px 58px,auto,auto,auto;
+  color:#f5f8ff;
+}
+.v2App:has(.primeDashboard):before,
+.v2App:has(.primeDashboard):after{
+  content:"";
+  position:fixed;
+  z-index:0;
+  border-radius:50%;
+  pointer-events:none;
+}
+.v2App:has(.primeDashboard):before{
+  width:430px;height:430px;
+  top:-305px;left:-105px;
+  background:radial-gradient(circle at 70% 72%,rgba(38,102,255,.27),rgba(7,31,91,.08) 58%,transparent 60%);
+  border:1px solid rgba(54,143,255,.2);
+  box-shadow:0 0 80px rgba(45,72,255,.14);
+}
+.v2App:has(.primeDashboard):after{
+  width:300px;height:300px;
+  right:-220px;bottom:-140px;
+  background:radial-gradient(circle at 20% 20%,rgba(92,61,255,.45),rgba(26,40,142,.15) 56%,transparent 59%);
+  border:1px solid rgba(74,102,255,.24);
+  box-shadow:0 0 80px rgba(70,63,255,.18);
+}
+.primeDashTopbar{
+  position:relative;
+  top:auto;
+  z-index:4;
+  height:116px;
+  padding-top:20px;
+  background:transparent;
+  border-bottom:0;
+  backdrop-filter:none;
+}
+.primeDashBrand{
+  gap:13px;
+}
+.primeDashBrand .v2BrandMark{
+  order:2;
+  width:62px;height:62px;
+  border-radius:19px;
+  color:white;
+  background:
+    radial-gradient(circle at 78% 15%,rgba(46,230,255,.6),transparent 38%),
+    linear-gradient(145deg,#bd48ff,#7138ff 48%,#267cff);
+  border:1px solid rgba(151,210,255,.52);
+  box-shadow:0 0 24px rgba(78,70,255,.42),inset 0 0 14px rgba(255,255,255,.09);
+}
+.primeDashBrand>div:last-child{order:1;text-align:right}
+.primeDashBrand strong{
+  font:900 29px/1 Arial,sans-serif;
+  letter-spacing:-.8px;
+  color:#fff;
+}
+.primeDashBrand strong::first-letter{color:#fff}
+.primeDashBrand span{
+  margin-top:7px;
+  font:500 10px/1 Arial,sans-serif;
+  letter-spacing:2.2px;
+  color:#8293bc;
+}
+.primeDashTopActions{
+  direction:ltr;
+  gap:11px;
+}
+.primeDashTopActions button{
+  position:relative;
+  width:59px;height:59px;
+  border-radius:17px;
+  border:1px solid rgba(45,122,255,.68);
+  background:linear-gradient(145deg,rgba(12,43,87,.78),rgba(6,27,61,.84));
+  color:#f3f7ff;
+  box-shadow:0 0 18px rgba(28,91,255,.12),inset 0 0 13px rgba(60,94,255,.06);
+}
+.primeDashTopActions button:hover{
+  border-color:#38dcff;
+  box-shadow:0 0 22px rgba(41,212,255,.18);
+}
+.primeDashBell>i{
+  position:absolute;
+  top:-5px;right:-5px;
+  min-width:18px;height:18px;
+  padding:0 4px;
+  border-radius:9px;
+  display:grid;
+  place-items:center;
+  font:700 7px/1 Arial,sans-serif;
+  font-style:normal;
+  color:#07101b;
+  background:#ffbc4b;
+  box-shadow:0 0 12px rgba(255,188,75,.55);
+}
+.v2Content:has(.primeDashboard){
+  position:relative;
+  z-index:2;
+  width:min(810px,calc(100% - 34px));
+  padding-top:2px;
+}
+.primeDashPageHead{
+  margin:0 0 18px;
+  text-align:right;
+  align-items:flex-end;
+}
+.primeDashPageHead>div{width:100%}
+.primeDashPageHead .v2Eyebrow{
+  display:block;
+  font:500 11px/1 Arial,sans-serif;
+  letter-spacing:4px;
+  color:#25dcff;
+  margin-bottom:13px;
+}
+.primeDashPageHead h1{
+  margin:0 0 8px;
+  font-size:43px;
+  line-height:1.25;
+  font-weight:900;
+  color:#fff;
+}
+.primeDashPageHead p{
+  font-size:16px;
+  color:#99a8c7;
+}
+.primeDashboard{
+  display:grid;
+  gap:18px;
+  direction:rtl;
+}
+.primeDashMetrics{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:14px;
+}
+.primeDashMetric{
+  --metric:#25c7ff;
+  position:relative;
+  min-height:138px;
+  border-radius:20px;
+  padding:22px 22px 19px 86px;
+  display:flex;
+  align-items:flex-start;
+  justify-content:flex-end;
+  overflow:hidden;
+  border:1px solid color-mix(in srgb,var(--metric) 75%,transparent);
+  background:
+    radial-gradient(circle at 84% 20%,color-mix(in srgb,var(--metric) 12%,transparent),transparent 36%),
+    linear-gradient(155deg,rgba(10,39,78,.93),rgba(6,27,58,.95));
+  box-shadow:
+    0 0 20px color-mix(in srgb,var(--metric) 18%,transparent),
+    inset 0 0 18px rgba(255,255,255,.02);
+}
+.primeDashMetric.violet{--metric:#8a48ff}
+.primeDashMetric.blue{--metric:#24baff}
+.primeDashMetric.purple{--metric:#7d47ff}
+.primeDashMetric.cyan{--metric:#14e2e8}
+.primeDashMetric:before{
+  content:"";
+  position:absolute;
+  top:-1px;right:11%;
+  width:54%;
+  height:2px;
+  background:linear-gradient(90deg,transparent,var(--metric),transparent);
+  filter:drop-shadow(0 0 7px var(--metric));
+}
+.primeDashMetricIcon{
+  position:absolute;
+  left:22px;
+  top:24px;
+  width:56px;height:56px;
+  border-radius:15px;
+  display:grid;
+  place-items:center;
+  color:color-mix(in srgb,var(--metric) 86%,white);
+  background:color-mix(in srgb,var(--metric) 14%,rgba(10,29,66,.74));
+  border:1px solid color-mix(in srgb,var(--metric) 36%,transparent);
+  box-shadow:0 0 17px color-mix(in srgb,var(--metric) 12%,transparent),inset 0 0 15px color-mix(in srgb,var(--metric) 8%,transparent);
+}
+.primeDashMetricBody{
+  position:relative;
+  z-index:2;
+  text-align:right;
+}
+.primeDashMetricBody>span{
+  display:block;
+  color:#dbe5fb;
+  font-size:15px;
+  margin-bottom:5px;
+}
+.primeDashMetricBody>strong{
+  display:block;
+  color:white;
+  font:800 25px/1.35 Tahoma,Arial,sans-serif;
+}
+.primeDashMetricBody>small{
+  display:block;
+  color:#8394bb;
+  font-size:10px;
+  margin-top:7px;
+}
+.primeDashWave{
+  position:absolute;
+  left:-8%;
+  right:-8%;
+  bottom:-19px;
+  height:62px;
+  opacity:.55;
+  background:
+    radial-gradient(65px 28px at 13% 62%,color-mix(in srgb,var(--metric) 26%,transparent),transparent 70%),
+    radial-gradient(110px 37px at 47% 92%,color-mix(in srgb,var(--metric) 21%,transparent),transparent 70%),
+    radial-gradient(70px 29px at 82% 73%,color-mix(in srgb,var(--metric) 17%,transparent),transparent 70%);
+  border-top:1px solid color-mix(in srgb,var(--metric) 46%,transparent);
+  filter:drop-shadow(0 -2px 8px color-mix(in srgb,var(--metric) 30%,transparent));
+  transform:skewX(-12deg);
+}
+.primeDashPanel{
+  position:relative;
+  overflow:hidden;
+  border-radius:22px;
+  border:1px solid rgba(81,68,255,.75);
+  background:
+    radial-gradient(circle at 92% 11%,rgba(92,62,255,.1),transparent 30%),
+    linear-gradient(155deg,rgba(9,38,76,.95),rgba(5,27,58,.96));
+  box-shadow:0 0 22px rgba(50,71,255,.17),inset 0 0 16px rgba(255,255,255,.018);
+  padding:20px;
+}
+.primeDashPanel:before{
+  content:"";
+  position:absolute;
+  top:-1px;right:12%;
+  width:46%;height:2px;
+  background:linear-gradient(90deg,transparent,#8348ff,#29d9ff,transparent);
+  box-shadow:0 0 11px rgba(69,121,255,.6);
+}
+.primeDashPanelHead{
+  display:grid;
+  grid-template-columns:52px 1fr auto;
+  align-items:center;
+  gap:11px;
+  margin-bottom:16px;
+}
+.primeDashTitleIcon{
+  width:50px;height:50px;
+  border-radius:14px;
+  display:grid;place-items:center;
+  color:#b576ff;
+  background:rgba(113,48,255,.13);
+  border:1px solid rgba(127,64,255,.34);
+  box-shadow:0 0 16px rgba(113,48,255,.12);
+}
+.primeDashPanelHead>div:nth-child(2){text-align:right}
+.primeDashPanelHead>div:nth-child(2)>strong{
+  display:block;
+  color:#fff;
+  font-size:18px;
+  margin-bottom:5px;
+}
+.primeDashPanelHead>div:nth-child(2)>span{
+  color:#8193b7;
+  font-size:10px;
+}
+.primeDashLive{
+  direction:ltr;
+  display:flex;
+  align-items:center;
+  gap:7px;
+  border:1px solid rgba(43,237,181,.34);
+  border-radius:99px;
+  padding:8px 12px;
+  color:#58e9b9;
+  font:700 13px/1 Arial,sans-serif;
+  background:rgba(27,199,145,.08);
+  box-shadow:0 0 15px rgba(38,224,165,.08);
+}
+.primeDashLive i,
+.primeDashState i{
+  width:9px;height:9px;
+  border-radius:50%;
+  background:#59efbb;
+  box-shadow:0 0 11px #59efbb;
+}
+.primeDashServiceList{
+  display:grid;
+  gap:7px;
+}
+.primeDashService{
+  min-height:45px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  border:1px solid rgba(255,255,255,.055);
+  border-radius:13px;
+  padding:0 14px;
+  background:linear-gradient(90deg,rgba(7,25,51,.72),rgba(9,31,60,.52));
+}
+.primeDashServiceName{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  color:#e6ecfb;
+  font:500 13px/1 Arial,Tahoma,sans-serif;
+}
+.primeDashServiceName svg{color:#35dfff}
+.primeDashState{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-width:74px;
+  justify-content:center;
+  border-radius:99px;
+  padding:7px 9px;
+  font-size:10px;
+}
+.primeDashState.online{
+  color:#56e9b6;
+  background:rgba(38,211,155,.08);
+  border:1px solid rgba(38,211,155,.18);
+}
+.primeDashState.warning{
+  color:#ffbd50;
+  background:rgba(255,179,45,.08);
+  border:1px solid rgba(255,179,45,.2);
+}
+.primeDashState.warning i{
+  background:#ffbd50;
+  box-shadow:0 0 10px #ffbd50;
+}
+.primeDashFinanceGrid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:11px;
+}
+.primeDashFinanceCard{
+  --metric:#25c7ff;
+  position:relative;
+  overflow:hidden;
+  min-height:112px;
+  border:1px solid color-mix(in srgb,var(--metric) 62%,transparent);
+  border-radius:16px;
+  padding:18px 18px 16px 68px;
+  display:flex;
+  align-items:flex-start;
+  justify-content:flex-end;
+  background:
+    radial-gradient(circle at 86% 18%,color-mix(in srgb,var(--metric) 10%,transparent),transparent 35%),
+    linear-gradient(155deg,rgba(10,37,74,.9),rgba(6,27,57,.95));
+  box-shadow:0 0 16px color-mix(in srgb,var(--metric) 12%,transparent);
+}
+.primeDashFinanceCard.violet{--metric:#8a48ff}
+.primeDashFinanceCard.blue{--metric:#28bfff}
+.primeDashFinanceCard.purple{--metric:#7449ff}
+.primeDashFinanceCard.cyan{--metric:#15dde8}
+.primeDashFinanceIcon{
+  position:absolute;
+  left:17px;top:18px;
+  width:43px;height:43px;
+  display:grid;place-items:center;
+  border-radius:12px;
+  color:color-mix(in srgb,var(--metric) 80%,white);
+  background:color-mix(in srgb,var(--metric) 12%,rgba(10,29,66,.75));
+  border:1px solid color-mix(in srgb,var(--metric) 33%,transparent);
+}
+.primeDashFinanceCard>div:nth-child(2){position:relative;z-index:2;text-align:right}
+.primeDashFinanceCard span{
+  display:block;
+  color:#cbd7ed;
+  font-size:12px;
+}
+.primeDashFinanceCard strong{
+  display:block;
+  color:white;
+  font-size:20px;
+  margin-top:7px;
+}
+.primeDashNotice{
+  min-height:180px;
+}
+.primeDashNoticeList{
+  display:grid;
+  gap:7px;
+}
+.primeDashNoticeList button{
+  width:100%;
+  min-height:50px;
+  display:grid;
+  grid-template-columns:30px 1fr auto;
+  align-items:center;
+  gap:9px;
+  text-align:right;
+  border:1px solid rgba(255,255,255,.055);
+  border-radius:13px;
+  padding:9px 12px;
+  background:rgba(4,22,47,.55);
+  color:#dbe8fa;
+}
+.primeDashNoticeList button>svg{color:#8b64ff}
+.primeDashNoticeList button strong{display:block;font-size:11px}
+.primeDashNoticeList button span{display:block;color:#7b8eb2;font-size:9px;margin-top:4px}
+.primeDashNoticeList button>i{
+  width:7px;height:7px;border-radius:50%;
+  background:#4ee8ba;
+  box-shadow:0 0 9px #4ee8ba;
+}
+.primeDashEmptyNotice{
+  min-height:90px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:9px;
+  color:#9badd0;
+}
+.primeDashEmptyNotice>span{
+  width:58px;height:58px;
+  display:grid;place-items:center;
+  border-radius:50%;
+  border:1px solid rgba(85,105,255,.35);
+  background:rgba(46,57,134,.12);
+  color:#8193db;
+}
+.primeDashEmptyNotice p{margin:0;font-size:12px}
+
+@media(max-width:760px){
+  .primeDashTopbar{
+    height:100px;
+    padding:15px 15px 0;
+  }
+  .primeDashBrand .v2BrandMark{
+    width:53px;height:53px;border-radius:16px;
+  }
+  .primeDashBrand strong{font-size:24px}
+  .primeDashBrand span{font-size:8px;letter-spacing:1.6px}
+  .primeDashTopActions{gap:7px}
+  .primeDashTopActions button{
+    width:49px;height:49px;border-radius:14px;
+  }
+  .v2Content:has(.primeDashboard){
+    width:calc(100% - 22px);
+    padding-top:0;
+  }
+  .primeDashPageHead{margin-bottom:14px}
+  .primeDashPageHead .v2Eyebrow{
+    font-size:8px;
+    letter-spacing:3px;
+    margin-bottom:9px;
+  }
+  .primeDashPageHead h1{font-size:34px;margin-bottom:4px}
+  .primeDashPageHead p{font-size:13px}
+  .primeDashboard{gap:13px}
+  .primeDashMetrics{gap:10px}
+  .primeDashMetric{
+    min-height:122px;
+    border-radius:17px;
+    padding:17px 14px 17px 60px;
+  }
+  .primeDashMetricIcon{
+    left:12px;top:18px;
+    width:43px;height:43px;
+    border-radius:12px;
+  }
+  .primeDashMetricBody>span{font-size:12px}
+  .primeDashMetricBody>strong{font-size:21px}
+  .primeDashMetricBody>small{font-size:8px}
+  .primeDashPanel{
+    border-radius:18px;
+    padding:15px;
+  }
+  .primeDashPanelHead{
+    grid-template-columns:43px 1fr auto;
+    gap:8px;
+    margin-bottom:12px;
+  }
+  .primeDashTitleIcon{
+    width:42px;height:42px;border-radius:12px;
+  }
+  .primeDashPanelHead>div:nth-child(2)>strong{font-size:15px}
+  .primeDashPanelHead>div:nth-child(2)>span{font-size:8px}
+  .primeDashLive{padding:7px 9px;font-size:10px}
+  .primeDashService{min-height:42px;padding:0 11px}
+  .primeDashServiceName{font-size:11px}
+  .primeDashState{min-width:67px;font-size:9px}
+  .primeDashFinanceGrid{gap:9px}
+  .primeDashFinanceCard{
+    min-height:102px;
+    padding:16px 12px 14px 56px;
+  }
+  .primeDashFinanceIcon{
+    left:12px;top:15px;width:38px;height:38px;
+  }
+  .primeDashFinanceCard span{font-size:10px}
+  .primeDashFinanceCard strong{font-size:17px}
+}
+@media(max-width:430px){
+  .primeDashTopbar{height:90px;padding-inline:10px}
+  .primeDashBrand{gap:8px}
+  .primeDashBrand .v2BrandMark{width:46px;height:46px}
+  .primeDashBrand strong{font-size:20px}
+  .primeDashBrand span{font-size:7px}
+  .primeDashTopActions button{width:43px;height:43px;border-radius:12px}
+  .primeDashTopActions button svg{width:18px}
+  .primeDashPageHead h1{font-size:30px}
+  .primeDashMetrics{grid-template-columns:1fr 1fr;gap:8px}
+  .primeDashMetric{min-height:112px;padding:14px 10px 14px 51px}
+  .primeDashMetricIcon{width:36px;height:36px;left:9px;top:15px}
+  .primeDashMetricIcon svg{width:19px}
+  .primeDashMetricBody>span{font-size:10.5px}
+  .primeDashMetricBody>strong{font-size:17px}
+  .primeDashMetricBody>small{font-size:7px}
+  .primeDashFinanceGrid{grid-template-columns:1fr 1fr}
+  .primeDashFinanceCard{min-height:95px;padding-left:48px}
+  .primeDashFinanceIcon{width:33px;height:33px;left:9px}
+  .primeDashFinanceCard strong{font-size:14px}
+  .primeDashPanelHead{grid-template-columns:39px 1fr auto}
+  .primeDashTitleIcon{width:38px;height:38px}
+  .primeDashPanelHead>div:nth-child(2)>strong{font-size:13px}
+  .primeDashLive{font-size:9px;padding:6px 7px}
+}
