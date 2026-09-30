@@ -1542,74 +1542,141 @@ export default function PrimePanelV2({
 
   function renderBots() {
     return (
-      <article className="v2Card v2TableCard">
-        <div className="v2CardHead">
-          <div><strong>ربات‌های فروش</strong><span>هر ربات پنل تنظیمات و کاتالوگ مستقل دارد</span></div>
-        </div>
-        <div className="v2Table">
-          <div className="v2Tr v2Th"><span>ربات</span><span>Wallet</span><span>Card</span><span>Gateway</span><span>وضعیت</span><span /></div>
-          {bots.map((b) => (
-            <div className="v2Tr" key={b.id}>
-              <div><strong>{b.name}</strong><small>@{b.username || "—"}</small></div>
-              <span>{b.customer_wallet_enabled ? "فعال" : "خاموش"}</span>
-              <span>{b.card_to_card_enabled ? "فعال" : "خاموش"}</span>
-              <span>{b.gateway_enabled ? "فعال" : "خاموش"}</span>
-              <span className={b.enabled ? "v2Badge ok" : "v2Badge off"}>{b.enabled ? "فعال" : "خاموش"}</span>
-              <button className="v2More" onClick={() => openBotManage(b)}><MoreVertical size={18} /></button>
+      <div className="primeBotsPage">
+        <section className="primeBotsPanel">
+          <div className="primeBotsPanelHead">
+            <div className="primeBotsTitleIcon"><Database size={26} /></div>
+            <div><strong>ربات‌های فروش</strong><span>مدیریت ربات‌های فروش پیامکی، کارتی و درگاه پرداخت</span></div>
+            <div className="primeBotsHeroIcon"><Bot size={34} /></div>
+          </div>
+
+          <div className="primeBotsTable">
+            <div className="primeBotsTableHead">
+              <span>نام</span><span>Wallet</span><span>Card</span><span>Gateway</span><span>وضعیت</span>
             </div>
-          ))}
-          {!bots.length && <Empty text="رباتی ثبت نشده." />}
-        </div>
-      </article>
+            <div className="primeBotsTableBody">
+              {bots.map((bot) => (
+                <button className="primeBotRow" key={bot.id} onClick={() => openBotManage(bot)}>
+                  <div><strong>{bot.name}</strong><small>@{bot.username || "—"}</small></div>
+                  <span>{bot.customer_wallet_enabled ? "فعال" : "خاموش"}</span>
+                  <span>{bot.card_to_card_enabled ? "فعال" : "خاموش"}</span>
+                  <span>{bot.gateway_enabled ? "فعال" : "خاموش"}</span>
+                  <span className={bot.enabled ? "primeBotStatus active" : "primeBotStatus disabled"}>{bot.enabled ? "فعال" : "خاموش"}</span>
+                </button>
+              ))}
+              {!bots.length && (
+                <div className="primeBotsEmpty">
+                  <span><Bot size={55} /></span>
+                  <strong>رباتی ثبت نشده</strong>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+      </div>
     );
   }
 
   function renderPasarguard() {
     return (
-      <div className="v2Stack">
-        <article className="v2Card v2TableCard">
-          <div className="v2CardHead"><div><strong>اتصال‌های PasarGuard</strong><span>چند پنل مرکزی قابل اتصال است</span></div></div>
-          <div className="v2Table">
-            <div className="v2Tr v2Th"><span>نام</span><span>آدرس</span><span>آخرین Sync</span><span>وضعیت</span><span /></div>
-            {connections.map((c) => (
-              <div className="v2Tr" key={c.id}>
-                <div><strong>{c.name}</strong>{c.last_error && <small className="v2Negative">{c.last_error}</small>}</div>
-                <span>{c.base_url}</span>
-                <span>{dt(c.last_sync_at)}</span>
-                <span className={c.enabled ? "v2Badge ok" : "v2Badge off"}>{c.enabled ? "فعال" : "خاموش"}</span>
-                <button className="v2More" onClick={() => { setSelectedId(c.id); setModal("connection-manage"); }}><MoreVertical size={18} /></button>
-              </div>
-            ))}
+      <div className="primePasarguardPage">
+        <section className="primePasarguardPanel">
+          <div className="primePasarguardPanelHead">
+            <div className="primePasarguardTitleIcon"><Database size={26} /></div>
+            <div><strong>اتصال‌های PasarGuard</strong><span>مدیریت و نظارت بر اتصال‌های PasarGuard</span></div>
           </div>
-        </article>
+
+          <div className="primePasarguardTable">
+            <div className="primePasarguardTableHead">
+              <span>نام</span><span>آدرس</span><span>آخرین Sync</span><span>وضعیت</span>
+            </div>
+            <div className="primePasarguardTableBody">
+              {connections.map((connection) => (
+                <button
+                  className="primePasarguardRow"
+                  key={connection.id}
+                  onClick={() => { setSelectedId(connection.id); setModal("connection-manage"); }}
+                >
+                  <div><strong>{connection.name}</strong>{connection.last_error && <small>{connection.last_error}</small>}</div>
+                  <span>{connection.base_url}</span>
+                  <span>{dt(connection.last_sync_at)}</span>
+                  <span className={connection.enabled ? "primePasarguardStatus active" : "primePasarguardStatus disabled"}>{connection.enabled ? "فعال" : "خاموش"}</span>
+                </button>
+              ))}
+
+              {!connections.length && (
+                <div className="primePasarguardEmpty">
+                  <span><ShieldCheck size={57} /></span>
+                  <strong>اتصالی ثبت نشده</strong>
+                  <p>برای افزودن اتصال جدید روی دکمه + افزودن کلیک کنید.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
       </div>
     );
   }
 
   function renderReports() {
     return (
-      <div className="v2Stack">
-        <section className="v2Metrics">
-          <article className="v2Metric"><span>فروش</span><strong>{money(financial?.sales_toman)}</strong><small>پرداخت‌های موفق</small></article>
-          <article className="v2Metric"><span>هزینه مصرف</span><strong>{money(financial?.actual_usage_cost_toman)}</strong><small>Billing واقعی</small></article>
-          <article className="v2Metric"><span>سود ناخالص</span><strong>{money(financial?.gross_margin_toman)}</strong><small>قبل از هزینه‌های جانبی</small></article>
-          <article className="v2Metric"><span>سفارش موفق</span><strong>{financial?.provisioned_orders || 0}</strong><small>Provisioned</small></article>
-        </section>
-        {user.role === "owner" && (
-          <article className="v2Card v2TableCard">
-            <div className="v2CardHead"><div><strong>Audit Log</strong><span>عملیات حساس سیستم</span></div></div>
-            <div className="v2Table">
-              <div className="v2Tr v2Th"><span>عملیات</span><span>Entity</span><span>IP</span><span>زمان</span></div>
-              {audits.map((a) => (
-                <div className="v2Tr" key={a.id}>
-                  <strong>{a.action}</strong>
-                  <span>{a.entity_type} · {a.entity_id || "—"}</span>
-                  <span>{a.ip_address || "—"}</span>
-                  <span>{dt(a.created_at)}</span>
-                </div>
-              ))}
-            </div>
+      <div className="primeReportsPage">
+        <section className="primeReportMetrics">
+          <article className="primeReportMetric cyan">
+            <div className="primeReportMetricIcon"><Wallet size={26} /></div>
+            <div><span>درآمد کل</span><strong>{money(financial?.sales_toman)}</strong><small>درآمد از فروش و تمدید</small></div>
+            <i><Activity size={19} /></i>
           </article>
+          <article className="primeReportMetric violet">
+            <div className="primeReportMetricIcon"><Activity size={26} /></div>
+            <div><span>حجم مصرف</span><strong>{gib(summary?.lifetime_usage_bytes || 0)}</strong><small>کل ترافیک مصرف‌شده</small></div>
+            <i><Activity size={19} /></i>
+          </article>
+          <article className="primeReportMetric emerald">
+            <div className="primeReportMetricIcon"><Users size={26} /></div>
+            <div><span>تعداد کاربران</span><strong>{(summary?.clients || 0).toLocaleString("fa-IR")}</strong><small>کاربران فعال سیستم</small></div>
+            <i><Activity size={19} /></i>
+          </article>
+          <article className="primeReportMetric orange">
+            <div className="primeReportMetricIcon"><Database size={26} /></div>
+            <div><span>سفارش‌های فعال‌سازی</span><strong>{(financial?.provisioned_orders || 0).toLocaleString("fa-IR")}</strong><small>سفارش‌های تهیه‌شده</small></div>
+            <i><Activity size={19} /></i>
+          </article>
+        </section>
+
+        {user.role === "owner" && (
+          <section className="primeAuditPanel">
+            <div className="primeAuditHead">
+              <div className="primeAuditIcon"><ShieldCheck size={27} /></div>
+              <div><strong>Audit Log</strong><span>سوابق حساب‌های سیستم</span></div>
+              <div className="primeAuditSideIcon"><CreditCard size={27} /></div>
+            </div>
+
+            <div className="primeAuditTable">
+              <div className="primeAuditTableHead">
+                <span>حساب</span><span>Entity</span><span>IP</span><span>عملیات</span><span>زمان</span>
+              </div>
+              <div className="primeAuditTableBody">
+                {audits.map((audit) => (
+                  <div className="primeAuditRow" key={audit.id}>
+                    <span>{audit.entity_type}</span>
+                    <span>{audit.entity_id || "—"}</span>
+                    <span>{audit.ip_address || "—"}</span>
+                    <strong>{audit.action}</strong>
+                    <span>{dt(audit.created_at)}</span>
+                  </div>
+                ))}
+
+                {!audits.length && (
+                  <div className="primeAuditEmpty">
+                    <span><Search size={48} /></span>
+                    <strong>رویدادی ثبت نشده</strong>
+                    <p>در حال حاضر هیچ رویدادی در سیستم وجود ندارد.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
         )}
       </div>
     );
@@ -1617,48 +1684,63 @@ export default function PrimePanelV2({
 
   function renderSettings() {
     return (
-      <div className="v2SettingsGrid">
-        <article className="v2Card">
-          <div className="v2CardHead">
-            <div><strong>کارت‌های بانکی</strong><span>کاملاً جدا از زرین‌پال</span></div>
-            <button className="v2PrimarySmall" onClick={() => setModal("bank-card")}><Plus size={15} /> کارت</button>
+      <div className="primeSettingsPage">
+        <section className="primeSettingsCard primeBankSection">
+          <div className="primeSettingsHead">
+            <div className="primeSettingsIcon"><CreditCard size={25} /></div>
+            <div><strong>کارت‌های بانکی</strong><span>مدیریت کارت‌های پرداخت و تسویه</span></div>
+            <button className="primeSettingsAdd" onClick={() => setModal("bank-card")}><Plus size={20} /> کارت</button>
           </div>
-          <div className="v2BankCards">
-            {bankCards.map((card) => (
-              <div className="v2BankCard" key={card.id}>
-                <div><strong>{card.title}</strong>{card.is_default && <span className="v2Badge ok">پیش‌فرض</span>}</div>
-                <b>{card.card_number.replace(/(\d{4})(?=\d)/g, "$1 ")}</b>
-                <span>{card.card_holder_name || "—"}</span>
-                <div className="v2Inline">
-                  {!card.is_default && <button onClick={() => run(() => authApi(`/api/v1/bank-cards/${card.id}`, { method: "PATCH", body: JSON.stringify({ is_default: true }) }), "کارت پیش‌فرض شد")}>پیش‌فرض</button>}
-                  <button className="danger" onClick={() => run(() => authApi(`/api/v1/bank-cards/${card.id}`, { method: "DELETE" }), "کارت حذف شد")}>حذف</button>
-                </div>
+          <div className="primeBankBody">
+            {bankCards.length ? (
+              <div className="primeBankGrid">
+                {bankCards.map((card) => (
+                  <div className="primeBankItem" key={card.id}>
+                    <div><strong>{card.title}</strong>{card.is_default && <span>پیش‌فرض</span>}</div>
+                    <b>{card.card_number.replace(/(\d{4})(?=\d)/g, "$1 ")}</b>
+                    <small>{card.card_holder_name || "—"}</small>
+                    <div>
+                      {!card.is_default && <button onClick={() => run(() => authApi(`/api/v1/bank-cards/${card.id}`, { method: "PATCH", body: JSON.stringify({ is_default: true }) }), "کارت پیش‌فرض شد")}>پیش‌فرض</button>}
+                      <button className="danger" onClick={() => run(() => authApi(`/api/v1/bank-cards/${card.id}`, { method: "DELETE" }), "کارت حذف شد")}>حذف</button>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-            {!bankCards.length && <Empty text="شماره کارتی ثبت نشده." />}
+            ) : (
+              <div className="primeSettingsEmpty">
+                <span><CreditCard size={46} /></span>
+                <strong>هنوز کارت بانکی اضافه نشده است.</strong>
+                <p>برای افزودن کارت بانکی روی دکمه «+ کارت» کلیک کنید.</p>
+              </div>
+            )}
           </div>
-        </article>
+        </section>
 
-        <article className="v2Card">
-          <div className="v2CardHead"><div><strong>زرین‌پال</strong><span>درگاه پرداخت مستقل</span></div><CreditCard size={20} /></div>
-          <div className="v2Form">
-            <label>Merchant ID
+        <section className="primeSettingsCard primeGatewaySection">
+          <div className="primeSettingsHead">
+            <div className="primeSettingsIcon"><WalletCards size={25} /></div>
+            <div><strong>زرین‌پال</strong><span>درگاه پرداخت متصل به پنل</span></div>
+            <strong className="primeZarinpalMark">Z.</strong>
+          </div>
+          <div className="primeGatewayBody">
+            <label>
+              <span>شناسه پذیرنده (Merchant ID)</span>
               <input
                 type="password"
-                placeholder={paymentProfile?.gateway_configured ? "برای تغییر Merchant ID وارد کنید" : "Merchant ID زرین‌پال"}
+                placeholder={paymentProfile?.gateway_configured ? "برای تغییر Merchant ID وارد کنید" : "Merchant ID"}
                 value={gatewayMerchant}
                 onChange={(e) => setGatewayMerchant(e.target.value)}
               />
             </label>
-            <label className="v2Check">
+            <label className="primeGatewayCheck">
               <input
                 type="checkbox"
                 checked={Boolean(paymentProfile?.gateway_enabled)}
                 onChange={(e) => setPaymentProfile((old) => old ? { ...old, gateway_enabled: e.target.checked } : old)}
               />
-              درگاه فعال
+              <span>درگاه فعال</span>
             </label>
-            <button className="v2Primary" onClick={() => run(() => authApi("/api/v1/payment-profile", {
+            <button className="primeSettingsPrimary" onClick={() => run(() => authApi("/api/v1/payment-profile", {
               method: "PUT",
               body: JSON.stringify({
                 gateway_provider: "zarinpal",
@@ -1671,51 +1753,63 @@ export default function PrimePanelV2({
               }),
             }), "تنظیمات زرین‌پال ذخیره شد")}>ذخیره زرین‌پال</button>
           </div>
-        </article>
+        </section>
 
-        <article className="v2Card">
-          <div className="v2CardHead"><div><strong>ظاهر پنل</strong><span>Theme و Accent</span></div></div>
-          <div className="v2OptionGrid">
-            <button className={theme === "dark" ? "active" : ""} onClick={() => setTheme("dark")}>Dark</button>
-            <button className={theme === "light" ? "active" : ""} onClick={() => setTheme("light")}>Light</button>
-            {(["cyan", "violet", "emerald", "orange"] as const).map((a) => (
-              <button key={a} className={accent === a ? "active" : ""} onClick={() => setAccent(a)}>{a}</button>
-            ))}
+        <section className="primeSettingsCard primeThemeSection">
+          <div className="primeSettingsHead">
+            <div className="primeSettingsIcon"><Settings size={25} /></div>
+            <div><strong>ظاهر پنل</strong><span>انتخاب تم رنگی پنل مدیریت</span></div>
           </div>
-        </article>
+          <div className="primeThemeOptions">
+            <button className={theme === "dark" ? "active" : ""} onClick={() => setTheme("dark")}><i className="dark" />Dark</button>
+            <button className={theme === "light" ? "active" : ""} onClick={() => setTheme("light")}><i className="light" />Light</button>
+            <button className={accent === "cyan" ? "active" : ""} onClick={() => setAccent("cyan")}><i className="cyan" />cyan</button>
+            <button className={accent === "violet" ? "active" : ""} onClick={() => setAccent("violet")}><i className="violet" />violet</button>
+            <button className={accent === "emerald" ? "active" : ""} onClick={() => setAccent("emerald")}><i className="emerald" />emerald</button>
+            <button className={accent === "orange" ? "active" : ""} onClick={() => setAccent("orange")}><i className="orange" />orange</button>
+          </div>
+        </section>
 
         {user.role === "owner" && (
-          <article className="v2Card">
-            <div className="v2CardHead"><div><strong>امنیت Owner</strong><span>2FA و Recovery Code</span></div></div>
-            <div className="v2Info">
-              <p>2FA: <b>{twoFactor?.enabled ? "فعال" : "غیرفعال"}</b></p>
-              <p>Recovery باقی‌مانده: <b>{twoFactor?.recovery_codes_remaining || 0}</b></p>
+          <section className="primeSettingsCard primeSecuritySection">
+            <div className="primeSettingsHead">
+              <div className="primeSettingsIcon"><ShieldCheck size={25} /></div>
+              <div><strong>امنیت Owner</strong><span>مدیریت امنیت حساب و احراز هویت دو مرحله‌ای</span></div>
             </div>
-            {!twoFactor?.enabled ? (
-              <button className="v2Primary" onClick={() => run(async () => {
-                const setup = await authApi<{ secret: string; recovery_codes: string[] }>("/api/v1/security/2fa/setup", { method: "POST" });
-                const code = window.prompt(`Secret:\n${setup.secret}\n\nRecovery:\n${setup.recovery_codes.join("  ")}\n\nکد ۶ رقمی:`);
-                if (!code) throw new Error("فعال‌سازی لغو شد");
-                await authApi("/api/v1/security/2fa/enable", { method: "POST", body: JSON.stringify({ code }) });
-              }, "2FA فعال شد")}>فعال‌سازی 2FA</button>
-            ) : (
-              <button className="v2Danger" onClick={() => {
-                const code = window.prompt("کد Authenticator:");
-                if (code) run(() => authApi("/api/v1/security/2fa/disable", { method: "POST", body: JSON.stringify({ code }) }), "2FA غیرفعال شد");
-              }}>غیرفعال‌کردن 2FA</button>
-            )}
-          </article>
+            <div className="primeSecurityBody">
+              <div>
+                <p><ShieldCheck size={18} /><span>Recovery Codes: 2FA</span><small>پشتیبان‌گیری کدهای بازیابی</small></p>
+                <p><ShieldCheck size={18} /><span>وضعیت: {twoFactor?.enabled ? "فعال" : "غیرفعال"}</span><small>احراز هویت دو مرحله‌ای پنل</small></p>
+              </div>
+              {!twoFactor?.enabled ? (
+                <button className="primeSecurityButton" onClick={() => run(async () => {
+                  const setup = await authApi<{ secret: string; recovery_codes: string[] }>("/api/v1/security/2fa/setup", { method: "POST" });
+                  const code = window.prompt(`Secret:\n${setup.secret}\n\nRecovery:\n${setup.recovery_codes.join("  ")}\n\nکد ۶ رقمی:`);
+                  if (!code) throw new Error("فعال‌سازی لغو شد");
+                  await authApi("/api/v1/security/2fa/enable", { method: "POST", body: JSON.stringify({ code }) });
+                }, "2FA فعال شد")}>فعال‌سازی 2FA</button>
+              ) : (
+                <button className="primeSecurityButton" onClick={() => {
+                  const code = window.prompt("کد Authenticator:");
+                  if (code) run(() => authApi("/api/v1/security/2fa/disable", { method: "POST", body: JSON.stringify({ code }) }), "2FA غیرفعال شد");
+                }}>غیرفعال‌کردن 2FA</button>
+              )}
+            </div>
+          </section>
         )}
 
         {user.role === "owner" && (
-          <article className="v2Card">
-            <div className="v2CardHead"><div><strong>Backup & Recovery</strong><span>رمزگذاری‌شده و Merge Restore</span></div></div>
-            <div className="v2Form">
-              <button onClick={exportBackup}>دانلود Backup</button>
-              <label>فایل Restore<input type="file" accept=".pvbackup" onChange={(e) => setBackupFile(e.target.files?.[0] || null)} /></label>
-              <button onClick={restoreBackup}>Merge Restore</button>
+          <section className="primeSettingsCard primeBackupSection">
+            <div className="primeSettingsHead">
+              <div className="primeSettingsIcon"><Database size={25} /></div>
+              <div><strong>Backup & Recovery</strong><span>پشتیبان‌گیری و بازیابی اطلاعات پنل</span></div>
             </div>
-          </article>
+            <div className="primeBackupRows">
+              <button onClick={exportBackup}><span><CreditCard size={21} /></span><div><strong>دانلود فایل پشتیبان</strong><small>تهیه نسخه پشتیبان از تمام اطلاعات</small></div><ChevronLeft size={19} /></button>
+              <label><span><CreditCard size={21} /></span><div><strong>بازیابی اطلاعات</strong><small>{backupFile?.name || "انتخاب فایل پشتیبان برای بازیابی"}</small></div><input type="file" accept=".pvbackup" onChange={(e) => setBackupFile(e.target.files?.[0] || null)} /><ChevronLeft size={19} /></label>
+              <button onClick={restoreBackup}><span><Settings size={21} /></span><div><strong>Merge Restore</strong><small>ادغام نسخه پشتیبان با اطلاعات فعلی</small></div><ChevronLeft size={19} /></button>
+            </div>
+          </section>
         )}
       </div>
     );
@@ -1736,12 +1830,12 @@ export default function PrimePanelV2({
 
   return (
     <main className="v2App">
-      <header className={["dashboard", "admins", "clients", "plans", "wallet", "commerce"].includes(section) ? "v2Topbar primeDashTopbar" : "v2Topbar"}>
-        <div className={["dashboard", "admins", "clients", "plans", "wallet", "commerce"].includes(section) ? "v2Brand primeDashBrand" : "v2Brand"}>
-          <div className="v2BrandMark">{["dashboard", "admins", "clients", "plans", "wallet", "commerce"].includes(section) ? <ShieldCheck size={22} /> : <Gauge size={21} />}</div>
+      <header className={["dashboard", "admins", "clients", "plans", "wallet", "commerce", "bots", "pasarguard", "reports", "settings"].includes(section) ? "v2Topbar primeDashTopbar" : "v2Topbar"}>
+        <div className={["dashboard", "admins", "clients", "plans", "wallet", "commerce", "bots", "pasarguard", "reports", "settings"].includes(section) ? "v2Brand primeDashBrand" : "v2Brand"}>
+          <div className="v2BrandMark">{["dashboard", "admins", "clients", "plans", "wallet", "commerce", "bots", "pasarguard", "reports", "settings"].includes(section) ? <ShieldCheck size={22} /> : <Gauge size={21} />}</div>
           <div><strong>PRIMEVPN</strong><span>{user.role === "owner" ? "OWNER CONTROL" : "RESELLER PANEL"}</span></div>
         </div>
-        <div className={["dashboard", "admins", "clients", "plans", "wallet", "commerce"].includes(section) ? "v2TopActions primeDashTopActions" : "v2TopActions"}>
+        <div className={["dashboard", "admins", "clients", "plans", "wallet", "commerce", "bots", "pasarguard", "reports", "settings"].includes(section) ? "v2TopActions primeDashTopActions" : "v2TopActions"}>
           <button className="v2MenuButton" title="منو" onClick={() => setDrawer(true)}><MoreVertical size={23} /></button>
           <button title="بروزرسانی" onClick={reloadSection}><RefreshCw size={18} /></button>
           {section === "dashboard" && (
@@ -1794,7 +1888,7 @@ export default function PrimePanelV2({
       )}
 
       <section className="v2Content">
-        <div className={section === "dashboard" ? "v2PageHead primeDashPageHead" : section === "admins" ? "v2PageHead primeAdminPageHead" : section === "clients" ? "v2PageHead primeClientPageHead" : section === "plans" ? "v2PageHead primePlanPageHead" : section === "wallet" ? "v2PageHead primeWalletPageHead" : section === "commerce" ? "v2PageHead primeCommercePageHead" : "v2PageHead"}>
+        <div className={section === "dashboard" ? "v2PageHead primeDashPageHead" : section === "admins" ? "v2PageHead primeAdminPageHead" : section === "clients" ? "v2PageHead primeClientPageHead" : section === "plans" ? "v2PageHead primePlanPageHead" : section === "wallet" ? "v2PageHead primeWalletPageHead" : section === "commerce" ? "v2PageHead primeCommercePageHead" : section === "bots" ? "v2PageHead primeBotsPageHead" : section === "pasarguard" ? "v2PageHead primePasarguardPageHead" : section === "reports" ? "v2PageHead primeReportsPageHead" : section === "settings" ? "v2PageHead primeSettingsPageHead" : "v2PageHead"}>
           <div>
             <span className="v2Eyebrow">PRIME NETWORK · PRODUCTION</span>
             <h1>{activeNav.label}</h1>
@@ -1811,7 +1905,7 @@ export default function PrimePanelV2({
         {pageContent()}
       </section>
 
-      {canCreate && !["admins", "clients"].includes(section) && <button className="v2Fab" onClick={contextualCreate}><Plus size={25} /></button>}
+      {canCreate && !["admins", "clients", "plans", "bots", "pasarguard"].includes(section) && <button className="v2Fab" onClick={contextualCreate}><Plus size={25} /></button>}
 
       <Modal open={modal === "admin-create"} title="ساخت نماینده" onClose={() => setModal(null)}>
         <form className="v2Form primeCreateForm primeAdminCreateForm" onSubmit={createAdmin}>
@@ -1972,7 +2066,7 @@ export default function PrimePanelV2({
       </Modal>
 
       <Modal open={modal === "connection-create"} title="افزودن PasarGuard" onClose={() => setModal(null)}>
-        <form className="v2Form" onSubmit={createConnection}>
+        <form className="v2Form primeConnectionCreateForm" onSubmit={createConnection}>
           <label>نام اتصال<input value={connectionForm.name} onChange={(e) => setConnectionForm({ ...connectionForm, name: e.target.value })} required /></label>
           <label>Panel URL<input placeholder="https://panel.example.com" value={connectionForm.base_url} onChange={(e) => setConnectionForm({ ...connectionForm, base_url: e.target.value })} required /></label>
           <label>API Token<input type="password" value={connectionForm.api_token} onChange={(e) => setConnectionForm({ ...connectionForm, api_token: e.target.value })} required /></label>
@@ -1998,7 +2092,7 @@ export default function PrimePanelV2({
       </Modal>
 
       <Modal open={modal === "bot-create"} title="ساخت ربات فروش" onClose={() => setModal(null)}>
-        <form className="v2Form" onSubmit={createBot}>
+        <form className="v2Form primeBotCreateForm" onSubmit={createBot}>
           <label>نام ربات<input value={botForm.name} onChange={(e) => setBotForm({ ...botForm, name: e.target.value })} required /></label>
           <label>Bot Token<input type="password" value={botForm.token} onChange={(e) => setBotForm({ ...botForm, token: e.target.value })} required /></label>
           {user.role === "owner" && <div className="v2Picker">
@@ -2058,7 +2152,7 @@ export default function PrimePanelV2({
       </Modal>
 
       <Modal open={modal === "bank-card"} title="افزودن کارت بانکی" onClose={() => setModal(null)}>
-        <form className="v2Form" onSubmit={createCard}>
+        <form className="v2Form primeBankCardCreateForm" onSubmit={createCard}>
           <label>عنوان کارت<input value={cardForm.title} onChange={(e) => setCardForm({ ...cardForm, title: e.target.value })} /></label>
           <label>شماره کارت<input inputMode="numeric" placeholder="603799..." value={cardForm.card_number} onChange={(e) => setCardForm({ ...cardForm, card_number: e.target.value })} required /></label>
           <label>نام صاحب کارت<input value={cardForm.card_holder_name} onChange={(e) => setCardForm({ ...cardForm, card_holder_name: e.target.value })} /></label>
