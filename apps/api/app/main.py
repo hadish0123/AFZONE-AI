@@ -486,7 +486,21 @@ async def list_groups(
     user: User = Depends(current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    stmt = select(PasarGuardGroup).order_by(PasarGuardGroup.name)
+    if user.role == Role.OWNER:
+        stmt = select(PasarGuardGroup).order_by(PasarGuardGroup.name)
+    else:
+        stmt = (
+            select(PasarGuardGroup)
+            .join(Plan, Plan.group_id == PasarGuardGroup.id)
+            .join(AdminPlan, AdminPlan.plan_id == Plan.id)
+            .where(
+                AdminPlan.admin_id == user.id,
+                AdminPlan.enabled.is_(True),
+                Plan.enabled.is_(True),
+            )
+            .distinct()
+            .order_by(PasarGuardGroup.name)
+        )
     groups = (await db.execute(stmt)).scalars()
     return [{
         "id": str(group.id),
@@ -510,6 +524,12 @@ async def list_plans(
             "name": plan.name,
             "group_id": str(plan.group_id),
             "base_price_per_gib_toman": str(plan.base_price_per_gib_toman),
+            "min_quota_gib": str(plan.min_quota_gib) if plan.min_quota_gib is not None else None,
+            "max_quota_gib": str(plan.max_quota_gib) if plan.max_quota_gib is not None else None,
+            "max_duration_days": plan.max_duration_days,
+            "default_hwid_limit": plan.default_hwid_limit,
+            "allow_custom_quota": plan.allow_custom_quota,
+            "allow_custom_duration": plan.allow_custom_duration,
             "enabled": plan.enabled,
         } for plan in rows]
 
@@ -526,6 +546,34 @@ async def list_plans(
         "retail_price_per_gib_toman": str(admin_plan.retail_price_per_gib_toman),
         "bot_visible": admin_plan.bot_visible,
     } for admin_plan, plan in rows]
+
+
+@app.get(f"{settings.api_prefix}/admins/{admin_id}/plans")
+async def list_admin_assignments(
+    admin_id: uuid.UUID,
+    _: User = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+):
+    admin = await db.scalar(select(User).where(User.id == admin_id, User.role == Role.ADMIN))
+    if not admin:
+        raise HTTPException(status_code=404, detail="admin not found")
+    rows = (
+        await db.execute(
+            select(AdminPlan, Plan)
+            .join(Plan, Plan.id == AdminPlan.plan_id)
+            .where(AdminPlan.admin_id == admin_id)
+            .order_by(Plan.name)
+        )
+    ).all()
+    return [{
+        "assignment_id": str(item.id),
+        "plan_id": str(plan.id),
+        "name": plan.name,
+        "enabled": item.enabled,
+        "bot_visible": item.bot_visible,
+        "base_price_per_gib_toman": str(plan.base_price_per_gib_toman),
+        "retail_price_per_gib_toman": str(item.retail_price_per_gib_toman),
+    } for item, plan in rows]
 
 
 @app.post(f"{settings.api_prefix}/plans", status_code=201)
@@ -1504,6 +1552,7 @@ from app.models import (
 
 class AdminUpdateIn(BaseModel):
     display_name: str | None = Field(default=None, max_length=160)
+    telegram_id: int | None = None
     status: AccountStatus | None = None
     password: str | None = Field(default=None, min_length=10, max_length=200)
     low_balance_threshold_toman: Decimal | None = Field(default=None, ge=0)
@@ -1645,6 +1694,8 @@ async def update_admin(
 
     if payload.display_name is not None:
         admin.display_name = payload.display_name
+    if payload.telegram_id is not None:
+        admin.telegram_id = payload.telegram_id
     if payload.status is not None:
         admin.status = payload.status
     if payload.password is not None:
