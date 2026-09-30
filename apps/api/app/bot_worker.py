@@ -195,8 +195,8 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
             await db.commit()
             return bot_row, customer
 
-    async def show_plans(target, state: FSMContext):
-        bot_row, _ = await get_context(target.from_user)
+    async def show_plans(target, state: FSMContext, tg_user):
+        bot_row, _ = await get_context(tg_user)
         if not bot_row:
             await target.answer("ربات موقتاً غیرفعال است.")
             return
@@ -279,9 +279,9 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
         kb.adjust(3, 3, 1)
         await target.answer("مدت سرویس را انتخاب کنید:", reply_markup=kb.as_markup())
 
-    async def show_checkout(target, state: FSMContext):
+    async def show_checkout(target, state: FSMContext, tg_user):
         data = await state.get_data()
-        bot_row, customer = await get_context(target.from_user)
+        bot_row, customer = await get_context(tg_user)
         plan_id = uuid.UUID(data["plan_id"])
         quota = Decimal(str(data["quota_gib"]))
         duration = data.get("duration_days")
@@ -350,7 +350,7 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
     @router.callback_query(F.data == "main:buy")
     async def buy(callback: CallbackQuery, state: FSMContext):
         await callback.answer()
-        await show_plans(callback.message, state)
+        await show_plans(callback.message, state, callback.from_user)
 
     @router.callback_query(F.data.startswith("plan:"))
     async def choose_plan(callback: CallbackQuery, state: FSMContext):
@@ -405,7 +405,7 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
         await state.update_data(duration_days=None if value == "0" else int(value))
         await state.set_state(None)
         await callback.answer()
-        await show_checkout(callback.message, state)
+        await show_checkout(callback.message, state, callback.from_user)
 
     @router.message(SaleFlow.custom_duration, F.text)
     async def custom_duration(message: Message, state: FSMContext):
@@ -422,7 +422,7 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
             return
         await state.update_data(duration_days=days)
         await state.set_state(None)
-        await show_checkout(message, state)
+        await show_checkout(message, state, message.from_user)
 
     @router.callback_query(F.data.startswith("pay:"))
     async def pay(callback: CallbackQuery, state: FSMContext):
@@ -534,9 +534,13 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
                     f"🧾 رسید جدید برای پرداخت {payment.id}\nمبلغ: {money_text(payment.amount_toman)}",
                 )
             await state.clear()
+            kb = InlineKeyboardBuilder()
+            kb.button(text="🔄 بررسی وضعیت سفارش", callback_data=f"check:{payment_id}")
+            kb.button(text="🏠 منوی اصلی", callback_data="main:home")
+            kb.adjust(1)
             await message.answer(
                 "✅ رسید ثبت شد. پس از تأیید نماینده، سرویس به‌صورت خودکار ساخته می‌شود.",
-                reply_markup=main_menu(),
+                reply_markup=kb.as_markup(),
             )
         except Exception as exc:
             await message.answer(str(exc)[:300])
@@ -737,9 +741,13 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
                     f"💰 رسید شارژ کیف پول مشتری\nمبلغ: {money_text(payment.amount_toman)}",
                 )
             await state.clear()
+            kb = InlineKeyboardBuilder()
+            kb.button(text="🔄 بررسی وضعیت شارژ", callback_data=f"check:{payment_id}")
+            kb.button(text="🏠 منوی اصلی", callback_data="main:home")
+            kb.adjust(1)
             await message.answer(
                 "✅ رسید شارژ ثبت شد و منتظر تأیید نماینده است.",
-                reply_markup=main_menu(),
+                reply_markup=kb.as_markup(),
             )
         except Exception as exc:
             await message.answer(str(exc)[:300])
