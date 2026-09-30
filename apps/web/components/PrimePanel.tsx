@@ -167,6 +167,11 @@ type PaymentProfile = {
   gateway_configured: boolean;
 };
 
+type TopupOptions = {
+  card_to_card: { enabled: boolean; card_number?: string | null; card_holder_name?: string | null; instructions?: string | null };
+  gateway: { enabled: boolean; provider?: string | null };
+};
+
 type AuditRow = {
   id: string;
   action: string;
@@ -223,6 +228,7 @@ export default function PrimePanel({
   const [paymentProfile, setPaymentProfile] = useState<PaymentProfile | null>(null);
   const [twoFactor, setTwoFactor] = useState<{ enabled: boolean; recovery_codes_remaining: number } | null>(null);
   const [audits, setAudits] = useState<AuditRow[]>([]);
+  const [topupOptions, setTopupOptions] = useState<TopupOptions | null>(null);
 
   const [adminForm, setAdminForm] = useState({ username: "", password: "", display_name: "", initial_balance_toman: "0" });
   const [connectionForm, setConnectionForm] = useState({ name: "", base_url: "", api_token: "" });
@@ -276,6 +282,10 @@ export default function PrimePanel({
         card_to_card_enabled: common[11].card_to_card_enabled,
         gateway_enabled: common[11].gateway_enabled,
       }));
+
+      if (user.role === "admin") {
+        setTopupOptions(await authApi<TopupOptions>("/api/v1/wallet/topup-options"));
+      }
 
       if (user.role === "owner") {
         const owner = await Promise.all([
@@ -610,7 +620,9 @@ export default function PrimePanel({
             <h3>شارژ با درگاه</h3><input type="number" value={walletTopup} onChange={(e) => setWalletTopup(e.target.value)} /><button className="primary">رفتن به درگاه</button>
           </form>
           <form className="subForm" onSubmit={cardWalletTopup}>
-            <h3>شارژ کارت‌به‌کارت</h3><input type="number" value={walletTopup} onChange={(e) => setWalletTopup(e.target.value)} /><input type="file" accept="image/*,.pdf" onChange={(e) => setWalletReceipt(e.target.files?.[0] || null)} /><button>ارسال رسید</button>
+            <h3>شارژ کارت‌به‌کارت</h3>
+            {topupOptions?.card_to_card.enabled ? <div className="cardInfo"><b>{topupOptions.card_to_card.card_number}</b><span>{topupOptions.card_to_card.card_holder_name || ""}</span><small>{topupOptions.card_to_card.instructions || ""}</small></div> : <div className="emptyMini">مالک هنوز کارت‌به‌کارت را تنظیم نکرده است.</div>}
+            <input type="number" value={walletTopup} onChange={(e) => setWalletTopup(e.target.value)} /><input type="file" accept="image/*,.pdf" onChange={(e) => setWalletReceipt(e.target.files?.[0] || null)} /><button>ارسال رسید</button>
           </form>
         </div>}
       </article>
