@@ -9,6 +9,29 @@ class PasarGuardError(RuntimeError):
     pass
 
 
+def normalize_subscription_url(base_url: str, value: str | None) -> str | None:
+    if not value:
+        return value
+    parsed = urlparse(value)
+    if parsed.scheme in {"http", "https"} and parsed.netloc:
+        return value
+    return urljoin(base_url.rstrip("/") + "/", value)
+
+
+def _normalize_subscription_fields(base_url: str, payload):
+    if isinstance(payload, dict):
+        result = dict(payload)
+        if "subscription_url" in result:
+            result["subscription_url"] = normalize_subscription_url(base_url, result.get("subscription_url"))
+        for key, value in list(result.items()):
+            if isinstance(value, (dict, list)):
+                result[key] = _normalize_subscription_fields(base_url, value)
+        return result
+    if isinstance(payload, list):
+        return [_normalize_subscription_fields(base_url, item) for item in payload]
+    return payload
+
+
 class PasarGuardClient:
     def __init__(self, base_url: str, encrypted_api_token: str, timeout: float = 20.0):
         parsed = urlparse(base_url)
@@ -38,7 +61,7 @@ class PasarGuardClient:
             )
         if not response.content:
             return None
-        return response.json()
+        return _normalize_subscription_fields(self.base_url, response.json())
 
     async def health(self):
         return await self.request("GET", "/api/admin")
