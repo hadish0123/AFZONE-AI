@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import { authApi, authBlob, logout, SessionUser } from "../lib/api";
 
 type Summary = {
@@ -245,6 +246,7 @@ export default function PrimePanel({
   const [walletTopup, setWalletTopup] = useState("100000");
   const [walletReceipt, setWalletReceipt] = useState<File | null>(null);
   const [assign, setAssign] = useState<Record<string, { adminId: string; price: string }>>({});
+  const [qrUrl, setQrUrl] = useState<string | null>(null);
   const [retail, setRetail] = useState<Record<string, string>>({});
   const [adminCredit, setAdminCredit] = useState<Record<string, string>>({});
 
@@ -701,7 +703,8 @@ export default function PrimePanel({
             <div><span>{c.expires_at ? dt(c.expires_at) : "بدون انقضا"} · {c.hwid_limit || "∞"} دستگاه</span></div>
             <div className="inlineActions">
               <button onClick={() => editClient(c)}>ویرایش</button>
-              <button title="کپی لینک" onClick={() => copy(c.subscription_url)}><Copy size={14}/></button>
+              <button title="QR اشتراک" disabled={!c.subscription_url} onClick={() => c.subscription_url && setQrUrl(c.subscription_url)}>QR</button>
+              <button title="کپی لینک" disabled={!c.subscription_url} onClick={() => copy(c.subscription_url)}><Copy size={14}/></button>
               <button onClick={() => run(() => authApi(`/api/v1/clients/${c.id}/reset-usage`, { method: "POST" }), "مصرف Reset شد")}>Reset</button>
               <button onClick={() => run(() => authApi(`/api/v1/clients/${c.id}/revoke-subscription`, { method: "POST" }), "Subscription عوض شد")}>Revoke</button>
               <button onClick={() => run(() => authApi(`/api/v1/clients/${c.id}`, { method: "PATCH", body: JSON.stringify({ disabled: c.status === "active" }) }), "وضعیت کلاینت تغییر کرد")}>{c.status === "active" ? "Disable" : "Enable"}</button>
@@ -791,7 +794,7 @@ export default function PrimePanel({
             <div><span className={"tag " + (p.status === "paid" ? "ok" : p.status === "awaiting_review" ? "hot" : "")}>{p.status}</span></div>
             <div className="inlineActions">
               {p.method === "card_to_card" && <button onClick={() => viewReceipt(p.id)}>رسید</button>}
-              {p.status === "awaiting_review" && <>
+              {p.status === "awaiting_review" && (user.role === "owner" || p.purpose !== "admin_wallet_topup") && <>
                 <button className="okSoft" onClick={() => run(() => authApi(`/api/v1/payments/${p.id}/review`, { method: "POST", body: JSON.stringify({ approved: true, note: "Approved from panel" }) }), "پرداخت تأیید شد")}><Check size={14}/> تأیید</button>
                 <button className="dangerSoft" onClick={() => run(() => authApi(`/api/v1/payments/${p.id}/review`, { method: "POST", body: JSON.stringify({ approved: false, note: "Rejected from panel" }) }), "پرداخت رد شد")}><X size={14}/> رد</button>
               </>}
@@ -829,7 +832,11 @@ export default function PrimePanel({
       <article className="panel">
         <SectionTitle title="ربات‌ها" sub="Telegram Worker به‌صورت خودکار ربات‌های فعال را اجرا می‌کند" />
         <div className="dataTable">
-          {bots.map((b) => <div className="dataRow" key={b.id}><div><strong>{b.name}</strong><span>@{b.username || "—"} · {b.enabled ? "فعال" : "خاموش"}</span></div><div className="inlineActions"><span className="tag">{b.customer_wallet_enabled ? "Wallet" : ""}</span><span className="tag">{b.card_to_card_enabled ? "Card" : ""}</span><span className="tag">{b.gateway_enabled ? "Gateway" : ""}</span><button onClick={() => editBot(b)}>ویرایش</button>{b.enabled && <button className="dangerSoft" onClick={() => run(() => authApi(`/api/v1/bots/${b.id}`, { method: "DELETE" }), "ربات غیرفعال شد")}>خاموش</button>}</div></div>)}
+          {bots.map((b) => <div className="dataRow" key={b.id}><div><strong>{b.name}</strong><span>@{b.username || "—"} · {b.enabled ? "فعال" : "خاموش"}</span></div><div className="inlineActions"><span className="tag">{b.customer_wallet_enabled ? "Wallet" : ""}</span><span className="tag">{b.card_to_card_enabled ? "Card" : ""}</span><span className="tag">{b.gateway_enabled ? "Gateway" : ""}</span><button onClick={() => editBot(b)}>ویرایش</button>
+              <button onClick={() => run(() => authApi(`/api/v1/bots/${b.id}`, { method: "PATCH", body: JSON.stringify({ customer_wallet_enabled: !b.customer_wallet_enabled }) }), "روش کیف پول ربات تغییر کرد")}>Wallet {b.customer_wallet_enabled ? "✓" : "×"}</button>
+              <button onClick={() => run(() => authApi(`/api/v1/bots/${b.id}`, { method: "PATCH", body: JSON.stringify({ card_to_card_enabled: !b.card_to_card_enabled }) }), "روش کارت ربات تغییر کرد")}>Card {b.card_to_card_enabled ? "✓" : "×"}</button>
+              <button onClick={() => run(() => authApi(`/api/v1/bots/${b.id}`, { method: "PATCH", body: JSON.stringify({ gateway_enabled: !b.gateway_enabled }) }), "روش درگاه ربات تغییر کرد")}>Gateway {b.gateway_enabled ? "✓" : "×"}</button>
+              {b.enabled && <button className="dangerSoft" onClick={() => run(() => authApi(`/api/v1/bots/${b.id}`, { method: "DELETE" }), "ربات غیرفعال شد")}>خاموش</button>}</div></div>)}
         </div>
       </article>
     </section>;
@@ -923,10 +930,20 @@ export default function PrimePanel({
     active === "گزارش‌ها" ? <Reports/> :
     <SettingsView/>;
 
+  const visibleNav = nav.filter(([, label]) => user.role === "owner" || !["نمایندگان", "PasarGuard"].includes(label));
+
   return <main className="shell">
+    {qrUrl && <div className="modalBackdrop" onClick={() => setQrUrl(null)}>
+      <div className="qrModal" onClick={(e) => e.stopPropagation()}>
+        <div className="qrBox"><QRCodeSVG value={qrUrl} size={220} level="M" includeMargin /></div>
+        <strong>QR اشتراک</strong>
+        <span>{qrUrl}</span>
+        <div className="inlineActions"><button onClick={() => copy(qrUrl)}>کپی لینک</button><button onClick={() => setQrUrl(null)}>بستن</button></div>
+      </div>
+    </div>}
     <aside className="sidebar glass">
       <div className="brand"><div className="brandMark"><Gauge size={25}/></div><div><strong>PRIMEVPN</strong><span>{user.role === "owner" ? "Owner Console" : "Admin Console"}</span></div></div>
-      <nav>{nav.filter(([, label]) => user.role === "owner" || !["نمایندگان", "PasarGuard"].includes(label)).map(([Icon, label]) => <button className={active === label ? "navItem active" : "navItem"} key={label} onClick={() => setActive(label)}><Icon size={19}/><span>{label}</span>{label === "داشبورد" && unread > 0 && <i className="navBadge">{unread}</i>}</button>)}</nav>
+      <nav>{visibleNav.map(([Icon, label]) => <button className={active === label ? "navItem active" : "navItem"} key={label} onClick={() => setActive(label)}><Icon size={19}/><span>{label}</span>{label === "داشبورد" && unread > 0 && <i className="navBadge">{unread}</i>}</button>)}</nav>
       <div className="ownerCard"><div className="avatar">{(user.display_name || user.username)[0].toUpperCase()}</div><div><strong>{user.display_name || user.username}</strong><span>{user.role}</span></div><button className="iconButton" onClick={signOut}><LogOut size={16}/></button></div>
     </aside>
     <section className="workspace">
@@ -935,5 +952,13 @@ export default function PrimePanel({
       {notice && <div className="pageSuccess">{notice}</div>}
       {body}
     </section>
+    <nav className="mobileNav glass">
+      {visibleNav.map(([Icon, label]) => <button
+        key={label}
+        className={active === label ? "active" : ""}
+        onClick={() => setActive(label)}
+        title={label}
+      ><Icon size={19}/><span>{label}</span>{label === "داشبورد" && unread > 0 && <i>{unread}</i>}</button>)}
+    </nav>
   </main>;
 }
