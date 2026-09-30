@@ -325,7 +325,11 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
             kb.button(text="✏️ مدت دلخواه", callback_data="duration:custom")
         kb.button(text="بدون انقضا", callback_data="duration:0")
         kb.adjust(3, 3, 1)
-        await target.answer("مدت سرویس را انتخاب کنید:", reply_markup=kb.as_markup())
+        await target.answer(
+            brand_title("انتخاب مدت", "مدت سرویس را انتخاب کنید."),
+            parse_mode="HTML",
+            reply_markup=kb.as_markup(),
+        )
 
     async def show_checkout(target, state: FSMContext, tg_user):
         data = await state.get_data()
@@ -416,7 +420,10 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
         if not bot_row or not admin:
             return
         await message.answer(
-            "🛠 <b>پنل مدیریت فروش</b>\nفقط برای مدیر این ربات قابل مشاهده است.",
+            brand_title(
+                "مدیریت فروش نماینده",
+                f"ربات: <b>{bot_row.name}</b>\nاین بخش فقط برای مدیر ثبت‌شده همین ربات قابل مشاهده است.",
+            ),
             parse_mode="HTML",
             reply_markup=manager_menu(),
         )
@@ -468,10 +475,10 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
                         .limit(10)
                     )
                 ).scalars().all()
-                lines = ["📦 <b>۱۰ سفارش اخیر</b>"]
+                lines = [brand_title("۱۰ سفارش اخیر")]
                 for order in rows:
                     lines.append(
-                        f"\n• {str(order.id)[:8]} · {order.status.value}\n"
+                        f"\n• {str(order.id)[:8]} · {status_text(order.status)}\n"
                         f"{money_text(order.retail_amount_toman)} · "
                         f"{Decimal(order.quota_bytes) / Decimal(1024**3):.0f} GB"
                     )
@@ -505,7 +512,7 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
                     await callback.message.answer(
                         "🧾 <b>رسید منتظر</b>\n"
                         f"مبلغ: {money_text(payment.amount_toman)}\n"
-                        f"نوع: {purpose}\n"
+                        f"نوع: {purpose_text(purpose)}\n"
                         f"شناسه: {str(payment.id)[:8]}",
                         parse_mode="HTML",
                         reply_markup=kb.as_markup(),
@@ -603,15 +610,23 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
             await message.answer("این ربات غیرفعال است.")
             return
         await message.answer(
-            f"سلام {message.from_user.first_name or ''} 👋\n"
-            "به فروشگاه PRIMEVPN خوش آمدید. یکی از گزینه‌ها را انتخاب کنید.",
+            brand_title(
+                "مرکز فروش",
+                f"سلام {message.from_user.first_name or 'کاربر'} 👋\n"
+                "خرید سرویس، کیف پول و سرویس‌های شما از همین منو در دسترس است.",
+            ),
+            parse_mode="HTML",
             reply_markup=main_menu(),
         )
 
     @router.callback_query(F.data == "main:home")
     async def home(callback: CallbackQuery, state: FSMContext):
         await state.clear()
-        await callback.message.edit_text("منوی اصلی:", reply_markup=main_menu())
+        await callback.message.edit_text(
+            brand_title("منوی اصلی", "گزینه موردنظر را انتخاب کنید."),
+            parse_mode="HTML",
+            reply_markup=main_menu(),
+        )
         await callback.answer()
 
     @router.callback_query(F.data == "main:buy")
@@ -633,7 +648,10 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
         value = callback.data.split(":", 1)[1]
         if value == "custom":
             await state.set_state(SaleFlow.custom_quota)
-            await callback.message.answer("حجم دلخواه را به گیگ وارد کنید؛ مثلاً 75")
+            await callback.message.answer(
+                brand_title("حجم دلخواه", "حجم را به گیگ وارد کنید؛ مثال: <b>75</b>"),
+                parse_mode="HTML",
+            )
             await callback.answer()
             return
         await state.update_data(quota_gib=value)
@@ -666,7 +684,10 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
         value = callback.data.split(":", 1)[1]
         if value == "custom":
             await state.set_state(SaleFlow.custom_duration)
-            await callback.message.answer("مدت دلخواه را به روز وارد کنید.")
+            await callback.message.answer(
+                brand_title("مدت دلخواه", "تعداد روز را وارد کنید."),
+                parse_mode="HTML",
+            )
             await callback.answer()
             return
         await state.update_data(duration_days=None if value == "0" else int(value))
@@ -831,7 +852,7 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
                 return
             if payment.status != PaymentStatus.PAID:
                 await callback.answer(
-                    f"وضعیت فعلی: {payment.status.value}",
+                    f"وضعیت فعلی: {status_text(payment.status)}",
                     show_alert=True,
                 )
                 return
@@ -878,12 +899,12 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
         if not rows:
             await callback.message.answer("هنوز سرویس فعالی ندارید.", reply_markup=main_menu())
         else:
-            text = ["📱 <b>سرویس‌های شما</b>"]
+            text = [brand_title("سرویس‌های شما")]
             for order, client in rows:
                 text.append(
                     f"\n• {client.username}\n"
                     f"حجم: {Decimal(order.quota_bytes) / Decimal(1024**3):.0f} GB\n"
-                    f"وضعیت: {client.status.value}\n"
+                    f"وضعیت: {status_text(client.status)}\n"
                     f"لینک: {client.subscription_url or '-'}"
                 )
             await callback.message.answer("\n".join(text), parse_mode="HTML", reply_markup=main_menu())
