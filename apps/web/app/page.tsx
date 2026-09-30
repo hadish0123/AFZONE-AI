@@ -1,6 +1,15 @@
 "use client";
 
-import { Gauge, ShieldCheck } from "lucide-react";
+import {
+  ArrowLeft,
+  Eye,
+  EyeOff,
+  Gauge,
+  KeyRound,
+  LockKeyhole,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
 import PrimePanelV2 from "../components/PrimePanelV2";
 import {
@@ -15,6 +24,7 @@ import {
 function LoginScreen({ onLogin }: { onLogin: (user: SessionUser) => void }) {
   const [username, setUsername] = useState("PrimeOwner");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [otp, setOtp] = useState("");
   const [otpRequired, setOtpRequired] = useState(false);
   const [error, setError] = useState("");
@@ -42,25 +52,106 @@ function LoginScreen({ onLogin }: { onLogin: (user: SessionUser) => void }) {
     }
   }
 
-  return <main className="loginPage">
-    <section className="loginCard glass">
-      <div className="loginGlow"/>
-      <div className="loginBrand"><div className="brandMark"><Gauge size={28}/></div><div><strong>PRIMEVPN</strong><span>Control Center</span></div></div>
-      <div className="loginCopy">
-        <p className="eyebrow">SECURE CONTROL PLANE</p>
-        <h1>ورود به پنل مرکزی</h1>
-        <p>مدیریت نمایندگان، کیف پول، فروش، مصرف واقعی، ربات‌ها و PasarGuard از یک نقطه.</p>
-      </div>
-      <form onSubmit={submit} className="loginForm">
-        <label>نام کاربری<input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username"/></label>
-        <label>رمز عبور<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password"/></label>
-        {otpRequired && <label>کد دو مرحله‌ای<input inputMode="numeric" autoComplete="one-time-code" placeholder="123456 یا Recovery Code" value={otp} onChange={(e) => setOtp(e.target.value)}/></label>}
-        {error && <div className="formError">{error}</div>}
-        <button className="primary loginButton" disabled={busy}>{busy ? "در حال بررسی..." : otpRequired ? "تأیید و ورود" : "ورود امن"}</button>
-      </form>
-      <div className="loginFoot"><ShieldCheck size={16}/> Session چرخشی · Rate limit · Secret encryption</div>
-    </section>
-  </main>;
+  return (
+    <main className="primeLoginPage" dir="rtl">
+      <div className="primeLoginOrb primeLoginOrbTop" />
+      <div className="primeLoginOrb primeLoginOrbBottom" />
+      <div className="primeLoginStars" />
+
+      <section className="primeLoginOuter">
+        <div className="primeLoginPanel">
+          <div className="primeLoginBrand">
+            <div className="primeLoginBrandText" dir="ltr">
+              <strong>PRIME<span>VPN</span></strong>
+              <small>Control Center</small>
+            </div>
+            <div className="primeLoginLogo">
+              <ShieldCheck size={47} strokeWidth={2.25} />
+            </div>
+          </div>
+
+          <div className="primeSecureTitle" dir="ltr">
+            <i />
+            <span>SECURE CONTROL PLANE</span>
+            <i />
+          </div>
+
+          <div className="primeLoginIntro">
+            <h1>ورود به <span>پنل مرکزی</span></h1>
+            <p>مدیریت کاربران، فروش، کیف پول، مصرف، ربات‌ها و سرویس‌ها از یک داشبورد حرفه‌ای.</p>
+          </div>
+
+          <form onSubmit={submit} className="primeLoginForm">
+            <label className="primeLoginField">
+              <span className="primeLoginLabel">نام کاربری</span>
+              <div className="primeLoginInput">
+                <input
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  autoComplete="username"
+                  spellCheck={false}
+                />
+                <span className="primeFieldIcon primeFieldIconLeft"><UserRound size={23} /></span>
+              </div>
+            </label>
+
+            <label className="primeLoginField">
+              <span className="primeLoginLabel">رمز عبور</span>
+              <div className="primeLoginInput">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                />
+                <span className="primeFieldIcon primeFieldIconLeft"><LockKeyhole size={22} /></span>
+                <button
+                  type="button"
+                  className="primePasswordToggle"
+                  aria-label={showPassword ? "مخفی کردن رمز عبور" : "نمایش رمز عبور"}
+                  onClick={() => setShowPassword((value) => !value)}
+                >
+                  {showPassword ? <Eye size={23} /> : <EyeOff size={23} />}
+                </button>
+              </div>
+            </label>
+
+            {otpRequired && (
+              <label className="primeLoginField">
+                <span className="primeLoginLabel">کد دو مرحله‌ای</span>
+                <div className="primeLoginInput">
+                  <input
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    placeholder="123456 یا Recovery Code"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value)}
+                  />
+                  <span className="primeFieldIcon primeFieldIconLeft"><KeyRound size={22} /></span>
+                </div>
+              </label>
+            )}
+
+            {error && <div className="primeLoginError">{error}</div>}
+
+            <button className="primeLoginButton" disabled={busy}>
+              <span>{busy ? "در حال بررسی..." : otpRequired ? "تأیید و ورود" : "ورود امن"}</span>
+              <i><ArrowLeft size={25} /></i>
+            </button>
+          </form>
+
+          <div className="primeLoginSecurity" dir="ltr">
+            <span>Rate limit</span>
+            <b />
+            <span>Secret encryption</span>
+            <b />
+            <span className="primeSession">Session <em>چرخشی</em></span>
+            <ShieldCheck size={23} />
+          </div>
+        </div>
+      </section>
+    </main>
+  );
 }
 
 export default function Home() {
@@ -83,9 +174,17 @@ export default function Home() {
   }, []);
 
   if (booting) {
-    return <main className="loginPage"><div className="bootLoader"><Gauge size={34}/><strong>PRIMEVPN</strong><span>در حال برقراری ارتباط امن...</span></div></main>;
+    return (
+      <main className="primeLoginPage">
+        <div className="bootLoader">
+          <Gauge size={34} />
+          <strong>PRIMEVPN</strong>
+          <span>در حال برقراری ارتباط امن...</span>
+        </div>
+      </main>
+    );
   }
 
-  if (!user) return <LoginScreen onLogin={setUser}/>;
-  return <PrimePanelV2 user={user} onSessionExpired={() => { clearSession(); setUser(null); }}/>;
+  if (!user) return <LoginScreen onLogin={setUser} />;
+  return <PrimePanelV2 user={user} onSessionExpired={() => { clearSession(); setUser(null); }} />;
 }
