@@ -1111,3 +1111,228 @@ async def review_payment(
     )
     await db.commit()
     return {"id": str(payment.id), "status": payment.status.value}
+
+
+# ---- Telegram bot management -----------------------------------------------
+
+from aiogram import Bot as AiogramBot
+
+from app.models import TelegramBot
+
+
+class TelegramBotCreateIn(BaseModel):
+    name: str = Field(min_length=2, max_length=160)
+    token: str = Field(min_length=20, max_length=300)
+    admin_id: uuid.UUID | None = None
+    customer_wallet_enabled: bool = True
+    card_to_card_enabled: bool = True
+    gateway_enabled: bool = False
+
+
+class TelegramBotUpdateIn(BaseModel):
+    name: str | None = Field(default=None, min_length=2, max_length=160)
+    token: str | None = Field(default=None, min_length=20, max_length=300)
+    enabled: bool | None = None
+    customer_wallet_enabled: bool | None = None
+    card_to_card_enabled: bool | None = None
+    gateway_enabled: bool | None = None
+
+
+async def _validate_telegram_token(token: str) -> dict:
+    bot = AiogramBot(token=token)
+    try:
+        info = await bot.get_me()
+        return {
+            "id": info.id,
+            "username": info.username,
+            "first_name": info.first_name,
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Telegram bot token is invalid or unreachable") from exc
+    finally:
+        await bot.session.close()
+
+
+async def _resolve_bot_admin(
+    user: User,
+    requested_admin_id: uuid.UUID | None,
+    db: AsyncSession,
+) -> User:
+    if user.role == Role.ADMIN:
+        if requested_admin_id and requested_admin_id != user.id:
+            raise HTTPException(status_code=403, detail="cannot create a bot for another admin")
+        return user
+    if not requested_admin_id:
+        raise HTTPException(status_code=400, detail="admin_id is required")
+    admin = await db.scalar(
+        select(User).where(User.id == requested_admin_id, User.role == Role.ADMIN)
+    )
+    if not admin:
+        raise HTTPException(status_code=404, detail="admin not found")
+    return admin
+
+
+@app.get(f"{settings.api_prefix}/bots")
+async def list_telegram_bots(
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    stmt = select(TelegramBot).order_by(TelegramBot.created_at.desc())
+    if user.role == Role.ADMIN:
+        stmt = stmt.where(TelegramBot.admin_id == user.id)
+    rows = (await db.execute(stmt)).scalars()
+    return [{
+        "id": str(item.id),
+        "admin_id": str(item.admin_id),
+        "name": item.name,
+        "username": item.username,
+        "enabled": item.enabled,
+        "customer_wallet_enabled": item.customer_wallet_enabled,
+        "card_to_card_enabled": item.card_to_card_enabled,
+        "gateway_enabled": item.gateway_enabled,
+        "created_at": item.created_at,
+    } for item in rows]
+
+
+@app.post(f"{settings.api_prefix}/bots", status_code=201)
+async def create_telegram_bot(
+    payload: TelegramBotCreateIn,
+    request: Request,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    admin = await _resolve_bot_admin(user, payload.admin_id, db)
+    bot_info = await _validate_telegram_token(payload.token)
+
+    existing = await db.scalar(
+        select(TelegramBot).where(
+            TelegramBot.admin_id == admin.id,
+            TelegramBot.username == bot_info.get("username"),
+        )
+    )
+    if existing:
+        raise HTTPException(status_code=409, detail="this Telegram bot is already registered")
+
+    row = TelegramBot(
+        admin_id=admin.id,
+        name=payload.name,
+        encrypted_token=encrypt_secret(payload.token),
+        username=bot_info.get("username"),
+        enabled=True,
+        customer_wallet_enabled=payload.customer_wallet_enabled,
+        card_to_card_enabled=payload.card_to_card_enabled,
+        gateway_enabled=payload.gateway_enabled,
+    )
+    db.add(row)
+    await db.flush()
+
+    await write_audit(
+        db,
+        actor_user_id=user.id,
+        action="telegram_bot.create",
+        entity_type="telegram_bot",
+        entity_id=str(row.id),
+        after_data={
+            "admin_id": str(admin.id),
+            "name": row.name,
+            "username": row.username,
+            "enabled": row.enabled,
+        },
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+    await db.refresh(row)
+    return {
+        "id": str(row.id),
+        "name": row.name,
+        "username": row.username,
+        "enabled": row.enabled,
+    }
+
+
+@app.patch(f"{settings.api_prefix}/bots/{{bot_id}}")
+async def update_telegram_bot(
+    bot_id: uuid.UUID,
+    payload: TelegramBotUpdateIn,
+    request: Request,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    row = await db.scalar(select(TelegramBot).where(TelegramBot.id == bot_id))
+    if not row:
+        raise HTTPException(status_code=404, detail="bot not found")
+    if user.role == Role.ADMIN and row.admin_id != user.id:
+        raise HTTPException(status_code=403, detail="bot belongs to another admin")
+
+    before = {
+        "name": row.name,
+        "username": row.username,
+        "enabled": row.enabled,
+        "customer_wallet_enabled": row.customer_wallet_enabled,
+        "card_to_card_enabled": row.card_to_card_enabled,
+        "gateway_enabled": row.gateway_enabled,
+    }
+
+    if payload.token is not None:
+        bot_info = await _validate_telegram_token(payload.token)
+        row.encrypted_token = encrypt_secret(payload.token)
+        row.username = bot_info.get("username")
+    if payload.name is not None:
+        row.name = payload.name
+    if payload.enabled is not None:
+        row.enabled = payload.enabled
+    if payload.customer_wallet_enabled is not None:
+        row.customer_wallet_enabled = payload.customer_wallet_enabled
+    if payload.card_to_card_enabled is not None:
+        row.card_to_card_enabled = payload.card_to_card_enabled
+    if payload.gateway_enabled is not None:
+        row.gateway_enabled = payload.gateway_enabled
+
+    await write_audit(
+        db,
+        actor_user_id=user.id,
+        action="telegram_bot.update",
+        entity_type="telegram_bot",
+        entity_id=str(row.id),
+        before_data=before,
+        after_data={
+            "name": row.name,
+            "username": row.username,
+            "enabled": row.enabled,
+            "customer_wallet_enabled": row.customer_wallet_enabled,
+            "card_to_card_enabled": row.card_to_card_enabled,
+            "gateway_enabled": row.gateway_enabled,
+        },
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+    return {"ok": True}
+
+
+@app.delete(f"{settings.api_prefix}/bots/{{bot_id}}", status_code=204)
+async def disable_telegram_bot(
+    bot_id: uuid.UUID,
+    request: Request,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    row = await db.scalar(select(TelegramBot).where(TelegramBot.id == bot_id))
+    if not row:
+        raise HTTPException(status_code=404, detail="bot not found")
+    if user.role == Role.ADMIN and row.admin_id != user.id:
+        raise HTTPException(status_code=403, detail="bot belongs to another admin")
+    row.enabled = False
+    await write_audit(
+        db,
+        actor_user_id=user.id,
+        action="telegram_bot.disable",
+        entity_type="telegram_bot",
+        entity_id=str(row.id),
+        after_data={"enabled": False},
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+    return None
