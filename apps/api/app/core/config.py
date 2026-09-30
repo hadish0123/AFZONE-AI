@@ -25,6 +25,7 @@ class Settings(BaseSettings):
 
     cors_origins: str = Field(default="", alias="CORS_ORIGINS")
     public_web_url: str = Field(default="http://localhost:3000", alias="PUBLIC_WEB_URL")
+    public_api_url: str = Field(default="http://localhost:8000", alias="PUBLIC_API_URL")
 
     billing_gib_bytes: int = 1024**3
     low_balance_warning_toman: int = 50_000
