@@ -98,6 +98,18 @@ def money_text(value) -> str:
     return f"{number_text(value)} تومان"
 
 
+def parse_decimal_text(value: str) -> Decimal:
+    normalized = (
+        str(value or "")
+        .strip()
+        .translate(str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789"))
+        .replace("٬", "")
+        .replace(",", "")
+        .replace("٫", ".")
+    )
+    return Decimal(normalized)
+
+
 def brand_title(title: str, subtitle: str | None = None) -> str:
     text = f"🛡 <b>PRIMEVPN</b>\n<b>{title}</b>"
     if subtitle:
@@ -719,7 +731,7 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
     @router.message(SaleFlow.custom_quota, F.text)
     async def custom_quota(message: Message, state: FSMContext):
         try:
-            quota = Decimal(message.text.strip())
+            quota = parse_decimal_text(message.text)
         except (InvalidOperation, AttributeError):
             await message.answer("یک عدد معتبر وارد کنید.")
             return
@@ -756,7 +768,7 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
     @router.message(SaleFlow.custom_duration, F.text)
     async def custom_duration(message: Message, state: FSMContext):
         try:
-            days = int(message.text.strip())
+            days = int(parse_decimal_text(message.text))
         except Exception:
             await message.answer("تعداد روز معتبر وارد کنید.")
             return
@@ -849,7 +861,11 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
         payment_id = data.get("payment_id")
         if not payment_id:
             await state.clear()
-            await message.answer("جلسه پرداخت منقضی شده است.", reply_markup=main_menu())
+            await message.answer(
+                brand_title("جلسه پرداخت", "جلسه پرداخت منقضی شده است؛ خرید را دوباره شروع کنید."),
+                parse_mode="HTML",
+                reply_markup=main_menu(),
+            )
             return
         try:
             raw, filename, mime = await receipt_bytes(message, bot)
@@ -883,7 +899,8 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
             kb.button(text="🏠 منوی اصلی", callback_data="main:home")
             kb.adjust(1)
             await message.answer(
-                "✅ رسید ثبت شد. پس از تأیید نماینده، سرویس به‌صورت خودکار ساخته می‌شود.",
+                brand_title("رسید ثبت شد", "پس از تأیید نماینده، سرویس به‌صورت خودکار ساخته می‌شود."),
+                parse_mode="HTML",
                 reply_markup=kb.as_markup(),
             )
         except Exception as exc:
@@ -984,7 +1001,7 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
     @router.message(SaleFlow.wallet_topup_amount, F.text)
     async def topup_amount(message: Message, state: FSMContext):
         try:
-            amount = Decimal(message.text.replace(",", "").strip())
+            amount = parse_decimal_text(message.text)
         except Exception:
             await message.answer("مبلغ معتبر وارد کنید.")
             return
@@ -1063,7 +1080,11 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
         payment_id = data.get("payment_id")
         if not payment_id:
             await state.clear()
-            await message.answer("جلسه شارژ منقضی شده است.", reply_markup=main_menu())
+            await message.answer(
+                brand_title("جلسه شارژ", "جلسه شارژ منقضی شده است؛ دوباره از منوی کیف پول شروع کنید."),
+                parse_mode="HTML",
+                reply_markup=main_menu(),
+            )
             return
         try:
             raw, filename, mime = await receipt_bytes(message, bot)
@@ -1097,7 +1118,8 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
             kb.button(text="🏠 منوی اصلی", callback_data="main:home")
             kb.adjust(1)
             await message.answer(
-                "✅ رسید شارژ ثبت شد و منتظر تأیید نماینده است.",
+                brand_title("رسید شارژ ثبت شد", "رسید شما ثبت شد و منتظر تأیید نماینده است."),
+                parse_mode="HTML",
                 reply_markup=kb.as_markup(),
             )
         except Exception as exc:
