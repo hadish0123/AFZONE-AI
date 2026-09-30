@@ -11,6 +11,16 @@ class InsufficientFundsError(RuntimeError):
     pass
 
 
+def normalize_wallet_delta(
+    txn_type: WalletTxnType,
+    amount_toman: Decimal,
+) -> Decimal:
+    amount = Decimal(amount_toman)
+    if txn_type == WalletTxnType.USAGE_CHARGE and amount > 0:
+        raise ValueError("usage_charge must debit the wallet")
+    return amount
+
+
 async def apply_wallet_transaction(
     db: AsyncSession,
     *,
@@ -38,7 +48,8 @@ async def apply_wallet_transaction(
     if not wallet:
         raise ValueError("wallet not found")
 
-    new_balance = Decimal(wallet.balance_toman) + Decimal(amount_toman)
+    amount = normalize_wallet_delta(txn_type, amount_toman)
+    new_balance = Decimal(wallet.balance_toman) + amount
     if new_balance < -Decimal(wallet.debt_limit_toman):
         raise InsufficientFundsError("wallet debt limit exceeded")
 
@@ -46,7 +57,7 @@ async def apply_wallet_transaction(
     txn = WalletTransaction(
         wallet_id=wallet.id,
         txn_type=txn_type,
-        amount_toman=amount_toman,
+        amount_toman=amount,
         balance_after_toman=new_balance,
         idempotency_key=idempotency_key,
         actor_user_id=actor_user_id,
