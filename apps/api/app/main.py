@@ -2658,3 +2658,403 @@ async def restore_backup(
     except Exception as exc:
         await db.rollback()
         raise HTTPException(status_code=400, detail="backup could not be restored") from exc
+
+
+# ---- Scalable directories and standalone bank cards ------------------------
+
+from math import ceil
+from sqlalchemy import or_
+
+from app.models import BankCard
+
+
+def _page_meta(total: int, page: int, page_size: int) -> dict:
+    return {
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "pages": max(1, ceil(total / page_size)) if total else 0,
+    }
+
+
+@app.get(f"{settings.api_prefix}/directory/admins")
+async def directory_admins(
+    q: str = "",
+    status_filter: AccountStatus | None = None,
+    page: int = 1,
+    page_size: int = 25,
+    _: User = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+):
+    page = max(1, page)
+    page_size = max(10, min(page_size, 100))
+    stmt = select(User).where(User.role == Role.ADMIN)
+    count_stmt = select(func.count(User.id)).where(User.role == Role.ADMIN)
+    if q.strip():
+        term = f"%{q.strip()}%"
+        clause = or_(User.username.ilike(term), User.display_name.ilike(term))
+        stmt = stmt.where(clause)
+        count_stmt = count_stmt.where(clause)
+    if status_filter is not None:
+        stmt = stmt.where(User.status == status_filter)
+        count_stmt = count_stmt.where(User.status == status_filter)
+    total = int(await db.scalar(count_stmt) or 0)
+    rows = (
+        await db.execute(
+            stmt.order_by(User.created_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+    ).scalars()
+    items = []
+    for admin in rows:
+        wallet = await db.scalar(select(Wallet).where(Wallet.owner_user_id == admin.id))
+        client_count = int(
+            await db.scalar(select(func.count(Client.id)).where(Client.admin_id == admin.id)) or 0
+        )
+        items.append({
+            "id": str(admin.id),
+            "username": admin.username,
+            "display_name": admin.display_name,
+            "telegram_id": admin.telegram_id,
+            "status": admin.status.value,
+            "wallet_balance_toman": str(wallet.balance_toman if wallet else 0),
+            "low_balance_threshold_toman": str(wallet.low_balance_threshold_toman if wallet else 0),
+            "debt_limit_toman": str(wallet.debt_limit_toman if wallet else 0),
+            "client_count": client_count,
+            "created_at": admin.created_at,
+        })
+    return {"items": items, **_page_meta(total, page, page_size)}
+
+
+@app.get(f"{settings.api_prefix}/directory/clients")
+async def directory_clients(
+    q: str = "",
+    status_filter: ClientStatus | None = None,
+    admin_id: uuid.UUID | None = None,
+    plan_id: uuid.UUID | None = None,
+    page: int = 1,
+    page_size: int = 25,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    page = max(1, page)
+    page_size = max(10, min(page_size, 100))
+    filters = []
+    if user.role == Role.ADMIN:
+        filters.append(Client.admin_id == user.id)
+    elif admin_id:
+        filters.append(Client.admin_id == admin_id)
+    if status_filter is not None:
+        filters.append(Client.status == status_filter)
+    if plan_id:
+        filters.append(Client.plan_id == plan_id)
+    if q.strip():
+        filters.append(Client.username.ilike(f"%{q.strip()}%"))
+
+    stmt = select(Client).where(*filters)
+    count_stmt = select(func.count(Client.id)).where(*filters)
+    total = int(await db.scalar(count_stmt) or 0)
+    rows = (
+        await db.execute(
+            stmt.order_by(Client.created_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+    ).scalars()
+
+    admin_ids = {row.admin_id for row in rows}
+    # Re-run because scalars iterator was consumed.
+    rows = (
+        await db.execute(
+            stmt.order_by(Client.created_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+    ).scalars().all()
+    admins_map = {}
+    if admin_ids:
+        admin_rows = (await db.execute(select(User).where(User.id.in_(admin_ids)))).scalars().all()
+        admins_map = {a.id: a.username for a in admin_rows}
+
+    return {
+        "items": [{
+            "id": str(item.id),
+            "admin_id": str(item.admin_id),
+            "admin_username": admins_map.get(item.admin_id),
+            "username": item.username,
+            "status": item.status.value,
+            "quota_bytes": item.quota_bytes,
+            "expires_at": item.expires_at,
+            "hwid_limit": item.hwid_limit,
+            "lifetime_usage_bytes": item.last_lifetime_usage_bytes,
+            "subscription_url": item.subscription_url,
+            "plan_id": str(item.plan_id) if item.plan_id else None,
+            "group_id": str(item.group_id),
+            "created_at": item.created_at,
+        } for item in rows],
+        **_page_meta(total, page, page_size),
+    }
+
+
+@app.get(f"{settings.api_prefix}/directory/orders")
+async def directory_orders(
+    q: str = "",
+    status_filter: OrderStatus | None = None,
+    admin_id: uuid.UUID | None = None,
+    page: int = 1,
+    page_size: int = 25,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    page = max(1, page)
+    page_size = max(10, min(page_size, 100))
+    filters = []
+    if user.role == Role.ADMIN:
+        filters.append(Order.admin_id == user.id)
+    elif admin_id:
+        filters.append(Order.admin_id == admin_id)
+    if status_filter:
+        filters.append(Order.status == status_filter)
+
+    stmt = select(Order).where(*filters)
+    count_stmt = select(func.count(Order.id)).where(*filters)
+    total = int(await db.scalar(count_stmt) or 0)
+    rows = (
+        await db.execute(
+            stmt.order_by(Order.created_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+    ).scalars().all()
+
+    if q.strip():
+        term = q.strip().lower()
+        rows = [r for r in rows if term in str(r.id).lower()]
+    return {
+        "items": [{
+            "id": str(item.id),
+            "admin_id": str(item.admin_id),
+            "customer_id": str(item.customer_id) if item.customer_id else None,
+            "plan_id": str(item.plan_id),
+            "quota_bytes": item.quota_bytes,
+            "duration_days": item.duration_days,
+            "retail_amount_toman": str(item.retail_amount_toman),
+            "payment_method": item.payment_method.value,
+            "status": item.status.value,
+            "client_id": str(item.client_id) if item.client_id else None,
+            "created_at": item.created_at,
+        } for item in rows],
+        **_page_meta(total, page, page_size),
+    }
+
+
+@app.get(f"{settings.api_prefix}/directory/payments")
+async def directory_payments(
+    status_filter: PaymentStatus | None = None,
+    method: PaymentMethod | None = None,
+    admin_id: uuid.UUID | None = None,
+    page: int = 1,
+    page_size: int = 25,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    page = max(1, page)
+    page_size = max(10, min(page_size, 100))
+    filters = []
+    if user.role == Role.ADMIN:
+        filters.append(Payment.admin_id == user.id)
+    elif admin_id:
+        filters.append(Payment.admin_id == admin_id)
+    if status_filter:
+        filters.append(Payment.status == status_filter)
+    if method:
+        filters.append(Payment.method == method)
+    stmt = select(Payment).where(*filters)
+    total = int(await db.scalar(select(func.count(Payment.id)).where(*filters)) or 0)
+    rows = (
+        await db.execute(
+            stmt.order_by(Payment.created_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+    ).scalars().all()
+    return {
+        "items": [{
+            "id": str(item.id),
+            "admin_id": str(item.admin_id),
+            "customer_id": str(item.customer_id) if item.customer_id else None,
+            "order_id": str(item.order_id) if item.order_id else None,
+            "method": item.method.value,
+            "status": item.status.value,
+            "amount_toman": str(item.amount_toman),
+            "provider": item.provider,
+            "provider_reference": item.provider_reference,
+            "purpose": (item.meta or {}).get("purpose"),
+            "created_at": item.created_at,
+        } for item in rows],
+        **_page_meta(total, page, page_size),
+    }
+
+
+@app.get(f"{settings.api_prefix}/directory/customers")
+async def directory_customers(
+    q: str = "",
+    admin_id: uuid.UUID | None = None,
+    page: int = 1,
+    page_size: int = 25,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    page = max(1, page)
+    page_size = max(10, min(page_size, 100))
+    filters = []
+    if user.role == Role.ADMIN:
+        filters.append(Customer.admin_id == user.id)
+    elif admin_id:
+        filters.append(Customer.admin_id == admin_id)
+    if q.strip():
+        term = f"%{q.strip()}%"
+        filters.append(or_(Customer.username.ilike(term), Customer.display_name.ilike(term)))
+    stmt = select(Customer).where(*filters)
+    total = int(await db.scalar(select(func.count(Customer.id)).where(*filters)) or 0)
+    rows = (
+        await db.execute(
+            stmt.order_by(Customer.created_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+    ).scalars().all()
+    return {
+        "items": [{
+            "id": str(item.id),
+            "admin_id": str(item.admin_id),
+            "telegram_user_id": item.telegram_user_id,
+            "username": item.username,
+            "display_name": item.display_name,
+            "wallet_balance_toman": str(item.wallet_balance_toman),
+            "created_at": item.created_at,
+        } for item in rows],
+        **_page_meta(total, page, page_size),
+    }
+
+
+class BankCardIn(BaseModel):
+    title: str = Field(default="کارت اصلی", min_length=1, max_length=120)
+    card_number: str = Field(min_length=16, max_length=24)
+    card_holder_name: str | None = Field(default=None, max_length=160)
+    instructions: str | None = Field(default=None, max_length=1000)
+    enabled: bool = True
+    is_default: bool = False
+
+
+class BankCardUpdateIn(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=120)
+    card_number: str | None = Field(default=None, min_length=16, max_length=24)
+    card_holder_name: str | None = Field(default=None, max_length=160)
+    instructions: str | None = Field(default=None, max_length=1000)
+    enabled: bool | None = None
+    is_default: bool | None = None
+
+
+async def _set_default_card(db: AsyncSession, user_id: uuid.UUID, card_id: uuid.UUID):
+    cards = (
+        await db.execute(select(BankCard).where(BankCard.owner_user_id == user_id))
+    ).scalars().all()
+    for card in cards:
+        card.is_default = card.id == card_id
+
+
+@app.get(f"{settings.api_prefix}/bank-cards")
+async def list_bank_cards(
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    rows = (
+        await db.execute(
+            select(BankCard)
+            .where(BankCard.owner_user_id == user.id)
+            .order_by(BankCard.is_default.desc(), BankCard.created_at.desc())
+        )
+    ).scalars().all()
+    return [{
+        "id": str(card.id),
+        "title": card.title,
+        "card_number": card.card_number,
+        "card_holder_name": card.card_holder_name,
+        "instructions": card.instructions,
+        "enabled": card.enabled,
+        "is_default": card.is_default,
+    } for card in rows]
+
+
+@app.post(f"{settings.api_prefix}/bank-cards", status_code=201)
+async def create_bank_card(
+    payload: BankCardIn,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    clean = "".join(ch for ch in payload.card_number if ch.isdigit())
+    if len(clean) != 16:
+        raise HTTPException(status_code=400, detail="card number must contain 16 digits")
+    existing_count = int(
+        await db.scalar(select(func.count(BankCard.id)).where(BankCard.owner_user_id == user.id)) or 0
+    )
+    card = BankCard(
+        owner_user_id=user.id,
+        title=payload.title,
+        card_number=clean,
+        card_holder_name=payload.card_holder_name,
+        instructions=payload.instructions,
+        enabled=payload.enabled,
+        is_default=payload.is_default or existing_count == 0,
+    )
+    db.add(card)
+    await db.flush()
+    if card.is_default:
+        await _set_default_card(db, user.id, card.id)
+    await db.commit()
+    return {"id": str(card.id), "is_default": card.is_default}
+
+
+@app.patch(f"{settings.api_prefix}/bank-cards/{{card_id}}")
+async def update_bank_card(
+    card_id: uuid.UUID,
+    payload: BankCardUpdateIn,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    card = await db.scalar(
+        select(BankCard).where(BankCard.id == card_id, BankCard.owner_user_id == user.id)
+    )
+    if not card:
+        raise HTTPException(status_code=404, detail="bank card not found")
+    if payload.card_number is not None:
+        clean = "".join(ch for ch in payload.card_number if ch.isdigit())
+        if len(clean) != 16:
+            raise HTTPException(status_code=400, detail="card number must contain 16 digits")
+        card.card_number = clean
+    for field in ("title", "card_holder_name", "instructions", "enabled"):
+        value = getattr(payload, field)
+        if value is not None:
+            setattr(card, field, value)
+    if payload.is_default:
+        await _set_default_card(db, user.id, card.id)
+    await db.commit()
+    return {"ok": True}
+
+
+@app.delete(f"{settings.api_prefix}/bank-cards/{{card_id}}", status_code=204)
+async def delete_bank_card(
+    card_id: uuid.UUID,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    card = await db.scalar(
+        select(BankCard).where(BankCard.id == card_id, BankCard.owner_user_id == user.id)
+    )
+    if not card:
+        return None
+    await db.delete(card)
+    await db.commit()
+    return None
