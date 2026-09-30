@@ -16,7 +16,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.types import CallbackQuery, InlineKeyboardButton, Message, Update
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from redis.asyncio import Redis
 
 from app.core.config import get_settings
@@ -224,44 +224,29 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
             await target.answer("ربات موقتاً غیرفعال است.")
             return
         async with SessionLocal() as db:
-            explicit_count = int(
-                await db.scalar(
-                    select(func.count(TelegramBotPlan.id)).where(
-                        TelegramBotPlan.bot_id == bot_row.id,
-                        TelegramBotPlan.enabled.is_(True),
+            rows = (
+                await db.execute(
+                    select(Plan, AdminPlan)
+                    .outerjoin(
+                        AdminPlan,
+                        and_(
+                            AdminPlan.plan_id == Plan.id,
+                            AdminPlan.admin_id == bot_row.admin_id,
+                            AdminPlan.enabled.is_(True),
+                        ),
                     )
-                ) or 0
-            )
-            stmt = (
-                select(AdminPlan, Plan)
-                .join(Plan, Plan.id == AdminPlan.plan_id)
-                .where(
-                    AdminPlan.admin_id == bot_row.admin_id,
-                    AdminPlan.enabled.is_(True),
-                    AdminPlan.bot_visible.is_(True),
-                    Plan.enabled.is_(True),
+                    .where(Plan.enabled.is_(True))
+                    .order_by(Plan.name)
                 )
-            )
-            if explicit_count:
-                stmt = (
-                    stmt.join(
-                        TelegramBotPlan,
-                        (TelegramBotPlan.bot_id == bot_row.id)
-                        & (TelegramBotPlan.plan_id == Plan.id),
-                    )
-                    .where(TelegramBotPlan.enabled.is_(True))
-                    .order_by(TelegramBotPlan.sort_order, Plan.name)
-                )
-            else:
-                stmt = stmt.order_by(Plan.name)
-            rows = (await db.execute(stmt)).all()
+            ).all()
         if not rows:
             await target.answer("در حال حاضر پلن فعالی برای فروش وجود ندارد.")
             return
         kb = InlineKeyboardBuilder()
-        for admin_plan, plan in rows:
+        for plan, admin_plan in rows:
+            retail = admin_plan.retail_price_per_gib_toman if admin_plan else plan.base_price_per_gib_toman
             kb.button(
-                text=f"{plan.name} · {money_text(admin_plan.retail_price_per_gib_toman)}/GB",
+                text=f"{plan.name} · {money_text(retail)}/GB",
                 callback_data=f"plan:{plan.id}",
             )
         kb.button(text="↩️ منوی اصلی", callback_data="main:home")
@@ -272,22 +257,12 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
     async def show_quota(callback: CallbackQuery, state: FSMContext, plan_id: uuid.UUID):
         bot_row, _ = await get_context(callback.from_user)
         async with SessionLocal() as db:
-            row = (
-                await db.execute(
-                    select(AdminPlan, Plan)
-                    .join(Plan, Plan.id == AdminPlan.plan_id)
-                    .where(
-                        AdminPlan.admin_id == bot_row.admin_id,
-                        AdminPlan.plan_id == plan_id,
-                        AdminPlan.enabled.is_(True),
-                        Plan.enabled.is_(True),
-                    )
-                )
-            ).first()
-        if not row:
+            plan = await db.scalar(
+                select(Plan).where(Plan.id == plan_id, Plan.enabled.is_(True))
+            )
+        if not plan:
             await callback.answer("این پلن دیگر در دسترس نیست.", show_alert=True)
             return
-        _, plan = row
         await state.update_data(plan_id=str(plan.id))
         minimum = Decimal(plan.min_quota_gib or 1)
         maximum = Decimal(plan.max_quota_gib) if plan.max_quota_gib is not None else None
@@ -330,14 +305,16 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
         async with SessionLocal() as db:
             row = (
                 await db.execute(
-                    select(AdminPlan, Plan)
-                    .join(Plan, Plan.id == AdminPlan.plan_id)
-                    .where(
-                        AdminPlan.admin_id == bot_row.admin_id,
-                        AdminPlan.plan_id == plan_id,
-                        AdminPlan.enabled.is_(True),
-                        Plan.enabled.is_(True),
+                    select(Plan, AdminPlan)
+                    .outerjoin(
+                        AdminPlan,
+                        and_(
+                            AdminPlan.plan_id == Plan.id,
+                            AdminPlan.admin_id == bot_row.admin_id,
+                            AdminPlan.enabled.is_(True),
+                        ),
                     )
+                    .where(Plan.id == plan_id, Plan.enabled.is_(True))
                 )
             ).first()
             profile = await db.scalar(
@@ -347,8 +324,9 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
         if not row:
             await target.answer("پلن در دسترس نیست.")
             return
-        admin_plan, plan = row
-        amount = Decimal(admin_plan.retail_price_per_gib_toman) * quota
+        plan, admin_plan = row
+        retail = Decimal(admin_plan.retail_price_per_gib_toman if admin_plan else plan.base_price_per_gib_toman)
+        amount = retail * quota
 
         text = (
             f"🧾 <b>پیش‌فاکتور</b>\n\n"
