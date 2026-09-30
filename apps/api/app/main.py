@@ -2139,3 +2139,341 @@ async def financial_report(
         "gross_margin_toman": str(revenue - cost),
         "provisioned_orders": int(await db.scalar(orders_stmt) or 0),
     }
+
+
+# ---- Commerce / order checkout ---------------------------------------------
+
+from fastapi.responses import RedirectResponse
+
+from app.services.commerce import (
+    create_admin_gateway_topup,
+    create_card_order_payment,
+    create_gateway_order_payment,
+    create_order as commerce_create_order,
+    get_or_create_customer,
+    pay_order_from_customer_wallet,
+    verify_gateway_payment,
+)
+
+
+class CustomerCreateIn(BaseModel):
+    admin_id: uuid.UUID | None = None
+    username: str | None = Field(default=None, max_length=160)
+    display_name: str | None = Field(default=None, max_length=200)
+    telegram_user_id: int | None = None
+
+
+class OrderCreateIn(BaseModel):
+    admin_id: uuid.UUID | None = None
+    customer_id: uuid.UUID | None = None
+    plan_id: uuid.UUID
+    quota_gib: Decimal = Field(gt=0)
+    duration_days: int | None = Field(default=None, ge=1, le=3650)
+    payment_method: PaymentMethod
+
+
+class GatewayTopupIn(BaseModel):
+    amount_toman: Decimal = Field(gt=0)
+
+
+async def _resolve_order_admin(
+    user: User,
+    requested_admin_id: uuid.UUID | None,
+    db: AsyncSession,
+) -> User:
+    if user.role == Role.ADMIN:
+        if requested_admin_id and requested_admin_id != user.id:
+            raise HTTPException(status_code=403, detail="cannot act for another admin")
+        return user
+    if not requested_admin_id:
+        raise HTTPException(status_code=400, detail="admin_id is required")
+    admin = await db.scalar(
+        select(User).where(User.id == requested_admin_id, User.role == Role.ADMIN)
+    )
+    if not admin:
+        raise HTTPException(status_code=404, detail="admin not found")
+    return admin
+
+
+@app.get(f"{settings.api_prefix}/customers")
+async def list_customers(
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    stmt = select(Customer).order_by(Customer.created_at.desc())
+    if user.role == Role.ADMIN:
+        stmt = stmt.where(Customer.admin_id == user.id)
+    rows = (await db.execute(stmt)).scalars()
+    return [{
+        "id": str(item.id),
+        "admin_id": str(item.admin_id),
+        "telegram_user_id": item.telegram_user_id,
+        "username": item.username,
+        "display_name": item.display_name,
+        "wallet_balance_toman": str(item.wallet_balance_toman),
+        "created_at": item.created_at,
+    } for item in rows]
+
+
+@app.post(f"{settings.api_prefix}/customers", status_code=201)
+async def create_customer(
+    payload: CustomerCreateIn,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    admin = await _resolve_order_admin(user, payload.admin_id, db)
+    customer = await get_or_create_customer(
+        db,
+        admin_id=admin.id,
+        telegram_user_id=payload.telegram_user_id,
+        username=payload.username,
+        display_name=payload.display_name,
+    )
+    await db.commit()
+    return {
+        "id": str(customer.id),
+        "admin_id": str(customer.admin_id),
+        "wallet_balance_toman": str(customer.wallet_balance_toman),
+    }
+
+
+@app.get(f"{settings.api_prefix}/customers/{{customer_id}}/wallet/transactions")
+async def customer_wallet_transactions(
+    customer_id: uuid.UUID,
+    limit: int = 100,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.models import CustomerWalletTransaction
+
+    customer = await db.scalar(select(Customer).where(Customer.id == customer_id))
+    if not customer:
+        raise HTTPException(status_code=404, detail="customer not found")
+    if user.role == Role.ADMIN and customer.admin_id != user.id:
+        raise HTTPException(status_code=403, detail="customer belongs to another admin")
+
+    rows = (
+        await db.execute(
+            select(CustomerWalletTransaction)
+            .where(CustomerWalletTransaction.customer_id == customer.id)
+            .order_by(CustomerWalletTransaction.created_at.desc())
+            .limit(max(1, min(limit, 300)))
+        )
+    ).scalars()
+    return [{
+        "id": str(item.id),
+        "type": item.txn_type,
+        "amount_toman": str(item.amount_toman),
+        "balance_after_toman": str(item.balance_after_toman),
+        "description": item.description,
+        "created_at": item.created_at,
+    } for item in rows]
+
+
+@app.get(f"{settings.api_prefix}/orders")
+async def list_orders(
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    stmt = select(Order).order_by(Order.created_at.desc())
+    if user.role == Role.ADMIN:
+        stmt = stmt.where(Order.admin_id == user.id)
+    rows = (await db.execute(stmt)).scalars()
+    return [{
+        "id": str(item.id),
+        "admin_id": str(item.admin_id),
+        "customer_id": str(item.customer_id) if item.customer_id else None,
+        "plan_id": str(item.plan_id),
+        "quota_bytes": item.quota_bytes,
+        "duration_days": item.duration_days,
+        "retail_amount_toman": str(item.retail_amount_toman),
+        "payment_method": item.payment_method.value,
+        "status": item.status.value,
+        "client_id": str(item.client_id) if item.client_id else None,
+        "created_at": item.created_at,
+    } for item in rows]
+
+
+@app.post(f"{settings.api_prefix}/orders", status_code=201)
+async def create_order_checkout(
+    payload: OrderCreateIn,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    admin = await _resolve_order_admin(user, payload.admin_id, db)
+    customer = None
+    if payload.customer_id:
+        customer = await db.scalar(
+            select(Customer).where(
+                Customer.id == payload.customer_id,
+                Customer.admin_id == admin.id,
+            )
+        )
+        if not customer:
+            raise HTTPException(status_code=404, detail="customer not found")
+
+    try:
+        order = await commerce_create_order(
+            db,
+            admin_id=admin.id,
+            customer_id=customer.id if customer else None,
+            plan_id=payload.plan_id,
+            quota_gib=payload.quota_gib,
+            duration_days=payload.duration_days,
+            payment_method=payload.payment_method,
+        )
+
+        if payload.payment_method == PaymentMethod.CUSTOMER_WALLET:
+            payment, client = await pay_order_from_customer_wallet(db, order)
+            await db.commit()
+            return {
+                "order_id": str(order.id),
+                "status": order.status.value,
+                "payment_id": str(payment.id),
+                "client_id": str(client.id),
+                "subscription_url": client.subscription_url,
+            }
+
+        if payload.payment_method == PaymentMethod.CARD_TO_CARD:
+            payment = await create_card_order_payment(db, order)
+            profile = await db.scalar(
+                select(PaymentProfile).where(PaymentProfile.owner_user_id == admin.id)
+            )
+            await db.commit()
+            return {
+                "order_id": str(order.id),
+                "status": order.status.value,
+                "payment_id": str(payment.id),
+                "payment_status": payment.status.value,
+                "amount_toman": str(payment.amount_toman),
+                "card_number": profile.card_number if profile else None,
+                "card_holder_name": profile.card_holder_name if profile else None,
+                "card_instructions": profile.card_instructions if profile else None,
+            }
+
+        if payload.payment_method == PaymentMethod.GATEWAY:
+            payment, gateway = await create_gateway_order_payment(db, order)
+            await db.commit()
+            return {
+                "order_id": str(order.id),
+                "status": order.status.value,
+                "payment_id": str(payment.id),
+                "payment_status": payment.status.value,
+                "amount_toman": str(payment.amount_toman),
+                "redirect_url": gateway.redirect_url,
+            }
+
+        raise HTTPException(status_code=400, detail="unsupported checkout payment method")
+
+    except HTTPException:
+        await db.rollback()
+        raise
+    except Exception as exc:
+        await db.rollback()
+        if exc.__class__.__name__ == "CustomerInsufficientFundsError":
+            raise HTTPException(status_code=402, detail="customer wallet balance is insufficient") from exc
+        if isinstance(exc, PermissionError):
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        if isinstance(exc, ValueError):
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise
+
+
+@app.post(f"{settings.api_prefix}/wallet/topups/gateway", status_code=201)
+async def create_wallet_gateway_topup(
+    payload: GatewayTopupIn,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if user.role != Role.ADMIN:
+        raise HTTPException(status_code=403, detail="admin access required")
+    try:
+        payment, gateway = await create_admin_gateway_topup(
+            db,
+            admin=user,
+            amount_toman=payload.amount_toman,
+        )
+        await db.commit()
+        return {
+            "payment_id": str(payment.id),
+            "amount_toman": str(payment.amount_toman),
+            "redirect_url": gateway.redirect_url,
+        }
+    except ValueError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@app.post(f"{settings.api_prefix}/payments/{{payment_id}}/receipt", status_code=201)
+async def upload_payment_receipt(
+    payment_id: uuid.UUID,
+    receipt: UploadFile = File(...),
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    payment = await db.scalar(select(Payment).where(Payment.id == payment_id))
+    if not payment:
+        raise HTTPException(status_code=404, detail="payment not found")
+    if user.role == Role.ADMIN and payment.admin_id != user.id:
+        raise HTTPException(status_code=403, detail="payment belongs to another admin")
+    if payment.method != PaymentMethod.CARD_TO_CARD:
+        raise HTTPException(status_code=409, detail="payment is not card-to-card")
+    if payment.status not in {PaymentStatus.PENDING, PaymentStatus.AWAITING_REVIEW}:
+        raise HTTPException(status_code=409, detail="payment no longer accepts receipts")
+
+    allowed_types = {"image/jpeg", "image/png", "image/webp", "application/pdf"}
+    if receipt.content_type not in allowed_types:
+        raise HTTPException(status_code=415, detail="receipt must be JPG, PNG, WEBP or PDF")
+    raw = await receipt.read(5 * 1024 * 1024 + 1)
+    if not raw or len(raw) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="receipt must be between 1 byte and 5 MB")
+
+    existing = await db.scalar(
+        select(PaymentReceipt).where(PaymentReceipt.payment_id == payment.id)
+    )
+    values = {
+        "original_name": (receipt.filename or "")[:255] or None,
+        "mime_type": receipt.content_type or "application/octet-stream",
+        "size_bytes": len(raw),
+        "sha256": hashlib.sha256(raw).hexdigest(),
+        "encrypted_data": encrypt_secret(base64.b64encode(raw).decode()),
+    }
+    if existing:
+        for key, value in values.items():
+            setattr(existing, key, value)
+    else:
+        db.add(PaymentReceipt(payment_id=payment.id, **values))
+
+    payment.status = PaymentStatus.AWAITING_REVIEW
+    await db.commit()
+    return {"payment_id": str(payment.id), "status": payment.status.value}
+
+
+@app.get(f"{settings.api_prefix}/gateway/callback/{{payment_id}}")
+async def gateway_callback(
+    payment_id: uuid.UUID,
+    Authority: str,
+    Status: str | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        payment, client = await verify_gateway_payment(
+            db,
+            payment_id=payment_id,
+            authority=Authority,
+            callback_status=Status,
+        )
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        return RedirectResponse(
+            url=settings.public_web_url.rstrip("/") + "/?payment=failed",
+            status_code=302,
+        )
+
+    result = "success" if payment.status == PaymentStatus.PAID else "failed"
+    suffix = f"&client={client.id}" if client else ""
+    return RedirectResponse(
+        url=settings.public_web_url.rstrip("/") + f"/?payment={result}{suffix}",
+        status_code=302,
+    )
