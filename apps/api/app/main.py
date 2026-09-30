@@ -1,3 +1,5 @@
+import json
+import hmac
 import uuid
 from contextlib import asynccontextmanager
 from decimal import Decimal
@@ -8,6 +10,7 @@ from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel, Field, HttpUrl
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from redis.asyncio import Redis
 
 from app.core.config import get_settings
 from app.core.security import (
@@ -42,6 +45,11 @@ from app.models import (
 )
 from app.services.pasarguard import PasarGuardClient, PasarGuardError
 from app.services.wallet import apply_wallet_transaction
+from app.services.telegram_webhook import (
+    TELEGRAM_MAX_UPDATE_BYTES,
+    TELEGRAM_UPDATE_STREAM,
+    telegram_webhook_secret,
+)
 
 settings = get_settings()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.api_prefix}/auth/login")
@@ -153,7 +161,13 @@ async def ensure_scale_indexes() -> None:
 async def lifespan(app: FastAPI):
     await ensure_owner()
     await ensure_scale_indexes()
-    yield
+    redis = Redis.from_url(settings.redis_url, decode_responses=True)
+    await redis.ping()
+    app.state.redis = redis
+    try:
+        yield
+    finally:
+        await redis.aclose()
 
 
 app = FastAPI(
@@ -170,6 +184,37 @@ if settings.cors_origin_list:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+
+@app.post(f"{settings.api_prefix}/telegram/webhook/{bot_id}", include_in_schema=False)
+async def telegram_webhook(bot_id: uuid.UUID, request: Request):
+    supplied_secret = request.headers.get("x-telegram-bot-api-secret-token", "")
+    expected_secret = telegram_webhook_secret(bot_id)
+    if not supplied_secret or not hmac.compare_digest(supplied_secret, expected_secret):
+        raise HTTPException(status_code=403, detail="invalid Telegram webhook secret")
+
+    raw = await request.body()
+    if not raw or len(raw) > TELEGRAM_MAX_UPDATE_BYTES:
+        raise HTTPException(status_code=413, detail="Telegram update payload is too large")
+
+    try:
+        payload = json.loads(raw)
+        update_id = int(payload["update_id"])
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="invalid Telegram update") from exc
+
+    redis: Redis = request.app.state.redis
+    await redis.xadd(
+        TELEGRAM_UPDATE_STREAM,
+        {
+            "bot_id": str(bot_id),
+            "update_id": str(update_id),
+            "payload": raw.decode("utf-8"),
+        },
+        maxlen=100_000,
+        approximate=True,
+    )
+    return {"ok": True}
 
 
 async def current_user(
