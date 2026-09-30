@@ -13,9 +13,17 @@ from app.core.config import get_settings
 from app.core.security import (
     create_access_token,
     decode_access_token,
+    decrypt_secret,
     encrypt_secret,
+    generate_recovery_codes,
     hash_password,
+    hash_refresh_token,
+    new_refresh_token,
+    new_totp_secret,
+    recovery_code_hash,
+    totp_uri,
     verify_password,
+    verify_totp,
 )
 from app.db import SessionLocal, engine, get_db
 from app.models import (
@@ -40,6 +48,15 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.api_prefix}/auth/login
 class LoginIn(BaseModel):
     username: str
     password: str
+    otp: str | None = Field(default=None, max_length=32)
+
+
+class RefreshIn(BaseModel):
+    refresh_token: str = Field(min_length=20)
+
+
+class TwoFactorCodeIn(BaseModel):
+    code: str = Field(min_length=6, max_length=32)
 
 
 class AdminCreateIn(BaseModel):
@@ -157,22 +174,129 @@ async def health():
 
 
 @app.post(f"{settings.api_prefix}/auth/login")
-async def login(payload: LoginIn, db: AsyncSession = Depends(get_db)):
+async def login(payload: LoginIn, request: Request, db: AsyncSession = Depends(get_db)):
+    from datetime import datetime, timedelta, timezone
+    from redis.asyncio import Redis
+    from app.models import AuthSession, UserSecurity
+
+    # Soft dependency: Redis protects login from brute force; a Redis outage
+    # must not permanently lock the Owner out of the control plane.
+    rate_key = f"primevpn:login:{request.client.host if request.client else 'unknown'}:{payload.username.lower()}"
+    redis = Redis.from_url(settings.redis_url, decode_responses=True)
+    try:
+        attempts = await redis.incr(rate_key)
+        if attempts == 1:
+            await redis.expire(rate_key, 300)
+        if attempts > 10:
+            raise HTTPException(status_code=429, detail="too many login attempts; try again shortly")
+    except HTTPException:
+        raise
+    except Exception:
+        pass
+    finally:
+        try:
+            await redis.aclose()
+        except Exception:
+            pass
+
     user = await db.scalar(select(User).where(User.username == payload.username))
     if not user or not verify_password(user.password_hash, payload.password):
         raise HTTPException(status_code=401, detail="invalid credentials")
     if user.status != AccountStatus.ACTIVE:
         raise HTTPException(status_code=403, detail="account disabled")
+
+    security = await db.scalar(select(UserSecurity).where(UserSecurity.user_id == user.id))
+    if security and security.totp_enabled:
+        if not payload.otp:
+            raise HTTPException(status_code=428, detail="otp_required")
+
+        accepted = False
+        if security.encrypted_totp_secret:
+            accepted = verify_totp(decrypt_secret(security.encrypted_totp_secret), payload.otp)
+
+        if not accepted:
+            candidate = recovery_code_hash(payload.otp)
+            if candidate in (security.recovery_code_hashes or []):
+                security.recovery_code_hashes = [
+                    item for item in security.recovery_code_hashes if item != candidate
+                ]
+                accepted = True
+
+        if not accepted:
+            raise HTTPException(status_code=401, detail="invalid_otp")
+
+    refresh_raw, refresh_hash = new_refresh_token()
+    session = AuthSession(
+        user_id=user.id,
+        refresh_token_hash=refresh_hash,
+        expires_at=datetime.now(timezone.utc) + timedelta(days=settings.refresh_token_days),
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    db.add(session)
+    await db.commit()
+
     return {
         "access_token": create_access_token(user.id, user.role.value),
+        "refresh_token": refresh_raw,
         "token_type": "bearer",
+        "expires_in": settings.access_token_minutes * 60,
         "user": {
             "id": str(user.id),
             "username": user.username,
             "display_name": user.display_name,
             "role": user.role.value,
+            "two_factor_enabled": bool(security and security.totp_enabled),
         },
     }
+
+
+@app.post(f"{settings.api_prefix}/auth/refresh")
+async def refresh_access_token(payload: RefreshIn, request: Request, db: AsyncSession = Depends(get_db)):
+    from datetime import datetime, timezone
+    from app.models import AuthSession
+
+    session = await db.scalar(
+        select(AuthSession).where(
+            AuthSession.refresh_token_hash == hash_refresh_token(payload.refresh_token)
+        ).with_for_update()
+    )
+    now = datetime.now(timezone.utc)
+    if not session or session.revoked_at is not None or session.expires_at <= now:
+        raise HTTPException(status_code=401, detail="refresh session expired")
+
+    user = await db.scalar(select(User).where(User.id == session.user_id))
+    if not user or user.status != AccountStatus.ACTIVE:
+        raise HTTPException(status_code=401, detail="account unavailable")
+
+    # Rotate refresh tokens on every use.
+    raw, hashed = new_refresh_token()
+    session.refresh_token_hash = hashed
+    session.ip_address = request.client.host if request.client else session.ip_address
+    session.user_agent = request.headers.get("user-agent") or session.user_agent
+    await db.commit()
+    return {
+        "access_token": create_access_token(user.id, user.role.value),
+        "refresh_token": raw,
+        "token_type": "bearer",
+        "expires_in": settings.access_token_minutes * 60,
+    }
+
+
+@app.post(f"{settings.api_prefix}/auth/logout", status_code=204)
+async def logout_session(payload: RefreshIn, db: AsyncSession = Depends(get_db)):
+    from datetime import datetime, timezone
+    from app.models import AuthSession
+
+    session = await db.scalar(
+        select(AuthSession).where(
+            AuthSession.refresh_token_hash == hash_refresh_token(payload.refresh_token)
+        )
+    )
+    if session and session.revoked_at is None:
+        session.revoked_at = datetime.now(timezone.utc)
+        await db.commit()
+    return None
 
 
 @app.get(f"{settings.api_prefix}/me")
