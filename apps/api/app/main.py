@@ -2189,17 +2189,31 @@ async def dashboard_summary(
     user: User = Depends(current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    today = datetime.now(timezone.utc).date()
+
     client_stmt = select(func.count(Client.id))
+    active_client_stmt = select(func.count(Client.id)).where(Client.status == ClientStatus.ACTIVE)
     usage_stmt = select(func.coalesce(func.sum(Client.last_lifetime_usage_bytes), 0))
     order_stmt = select(func.count(Order.id))
+    today_order_stmt = select(func.count(Order.id)).where(
+        func.date(Order.created_at) == today
+    )
     payment_stmt = select(func.coalesce(func.sum(Payment.amount_toman), 0)).where(
         Payment.status == PaymentStatus.PAID
     )
+    today_payment_stmt = select(func.coalesce(func.sum(Payment.amount_toman), 0)).where(
+        Payment.status == PaymentStatus.PAID,
+        func.date(Payment.created_at) == today,
+    )
+
     if user.role == Role.ADMIN:
         client_stmt = client_stmt.where(Client.admin_id == user.id)
+        active_client_stmt = active_client_stmt.where(Client.admin_id == user.id)
         usage_stmt = usage_stmt.where(Client.admin_id == user.id)
         order_stmt = order_stmt.where(Order.admin_id == user.id)
+        today_order_stmt = today_order_stmt.where(Order.admin_id == user.id)
         payment_stmt = payment_stmt.where(Payment.admin_id == user.id)
+        today_payment_stmt = today_payment_stmt.where(Payment.admin_id == user.id)
 
     wallet = await db.scalar(select(Wallet).where(Wallet.owner_user_id == user.id))
     return {
@@ -2207,9 +2221,12 @@ async def dashboard_summary(
         "admins": int(await db.scalar(select(func.count(User.id)).where(User.role == Role.ADMIN)))
         if user.role == Role.OWNER else None,
         "clients": int(await db.scalar(client_stmt) or 0),
+        "active_clients": int(await db.scalar(active_client_stmt) or 0),
         "lifetime_usage_bytes": int(await db.scalar(usage_stmt) or 0),
         "orders": int(await db.scalar(order_stmt) or 0),
+        "today_orders": int(await db.scalar(today_order_stmt) or 0),
         "paid_volume_toman": str(await db.scalar(payment_stmt) or 0),
+        "today_paid_toman": str(await db.scalar(today_payment_stmt) or 0),
         "wallet_balance_toman": str(wallet.balance_toman if wallet else 0),
         "pending_payments": int(
             await db.scalar(
