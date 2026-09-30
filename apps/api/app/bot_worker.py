@@ -13,7 +13,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.types import CallbackQuery, InlineKeyboardButton, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.core.config import get_settings
 from app.core.security import decrypt_secret, encrypt_secret
@@ -32,6 +32,7 @@ from app.models import (
     PaymentStatus,
     Plan,
     TelegramBot,
+    TelegramBotPlan,
     User,
 )
 from app.services.commerce import (
@@ -202,19 +203,37 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
             await target.answer("ربات موقتاً غیرفعال است.")
             return
         async with SessionLocal() as db:
-            rows = (
-                await db.execute(
-                    select(AdminPlan, Plan)
-                    .join(Plan, Plan.id == AdminPlan.plan_id)
-                    .where(
-                        AdminPlan.admin_id == bot_row.admin_id,
-                        AdminPlan.enabled.is_(True),
-                        AdminPlan.bot_visible.is_(True),
-                        Plan.enabled.is_(True),
+            explicit_count = int(
+                await db.scalar(
+                    select(func.count(TelegramBotPlan.id)).where(
+                        TelegramBotPlan.bot_id == bot_row.id,
+                        TelegramBotPlan.enabled.is_(True),
                     )
-                    .order_by(Plan.name)
+                ) or 0
+            )
+            stmt = (
+                select(AdminPlan, Plan)
+                .join(Plan, Plan.id == AdminPlan.plan_id)
+                .where(
+                    AdminPlan.admin_id == bot_row.admin_id,
+                    AdminPlan.enabled.is_(True),
+                    AdminPlan.bot_visible.is_(True),
+                    Plan.enabled.is_(True),
                 )
-            ).all()
+            )
+            if explicit_count:
+                stmt = (
+                    stmt.join(
+                        TelegramBotPlan,
+                        (TelegramBotPlan.bot_id == bot_row.id)
+                        & (TelegramBotPlan.plan_id == Plan.id),
+                    )
+                    .where(TelegramBotPlan.enabled.is_(True))
+                    .order_by(TelegramBotPlan.sort_order, Plan.name)
+                )
+            else:
+                stmt = stmt.order_by(Plan.name)
+            rows = (await db.execute(stmt)).all()
         if not rows:
             await target.answer("در حال حاضر پلن فعالی برای فروش وجود ندارد.")
             return
