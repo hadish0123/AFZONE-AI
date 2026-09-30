@@ -1,8 +1,1 @@
-[build]
-builder = "DOCKERFILE"
-dockerfilePath = "Dockerfile"
-
-[deploy]
-healthcheckPath = "/health"
-healthcheckTimeout = 20
-restartPolicyType = "ON_FAILURE"
+# legacy AFZONE-AI removed; reserved for PRIMEVPN
