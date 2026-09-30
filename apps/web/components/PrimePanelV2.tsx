@@ -1133,35 +1133,54 @@ export default function PrimePanelV2({
   function openOwnerPlanEdit(plan: PlanRow) {
     openActionDialog({
       title: "ویرایش پلن",
-      description: plan.name,
+      description: "قیمت‌ها دقیقاً به تومان ذخیره می‌شوند؛ مثال: 400 یعنی 400 تومان برای هر GB.",
       fields: [
         { key: "name", label: "نام پلن", type: "text", required: true },
-        { key: "price", label: "قیمت پایه هر GB", type: "number", required: true },
+        { key: "price", label: "قیمت پایه هر GB (تومان)", type: "text", placeholder: "مثلاً 400", required: true },
+        { key: "min_quota", label: "حداقل حجم (GB)", type: "text", placeholder: "مثلاً 1" },
+        { key: "max_quota", label: "حداکثر حجم (GB)", type: "text", placeholder: "خالی = نامحدود" },
+        { key: "max_days", label: "حداکثر مدت (روز)", type: "text", placeholder: "خالی = نامحدود" },
+        { key: "hwid", label: "تعداد دستگاه پیش‌فرض", type: "text", placeholder: "مثلاً 1" },
       ],
       submitLabel: "ذخیره پلن",
       successMessage: "پلن ویرایش شد",
-      onSubmit: (values) => authApi(`/api/v1/plans/${plan.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ name: values.name, base_price_per_gib_toman: Number(values.price) }),
-      }),
+      onSubmit: (values) => {
+        const price = exactNumber(values.price);
+        if (!Number.isFinite(price) || price <= 0) throw new Error("قیمت پایه باید یک مبلغ معتبر به تومان باشد.");
+        return authApi(`/api/v1/plans/${plan.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            name: values.name,
+            base_price_per_gib_toman: price,
+            min_quota_gib: values.min_quota ? exactNumber(values.min_quota) : null,
+            max_quota_gib: values.max_quota ? exactNumber(values.max_quota) : null,
+            max_duration_days: values.max_days ? exactNumber(values.max_days) : null,
+            default_hwid_limit: values.hwid ? exactNumber(values.hwid) : null,
+          }),
+        });
+      },
     }, {
       name: plan.name,
-      price: String(plan.base_price_per_gib_toman || ""),
+      price: String(plan.base_price_per_gib_toman || plan.cost_per_gib_toman || ""),
+      min_quota: String(plan.min_quota_gib || ""),
+      max_quota: String(plan.max_quota_gib || ""),
+      max_days: String(plan.max_duration_days || ""),
+      hwid: String(plan.default_hwid_limit || ""),
     });
   }
 
   function openRetailPlanEdit(plan: PlanRow) {
     openActionDialog({
       title: "قیمت فروش پلن",
-      description: plan.name,
+      description: "مبلغ دقیق به تومان است؛ مثال: 800 یعنی 800 تومان برای هر GB.",
       fields: [
-        { key: "price", label: "قیمت فروش هر GB", type: "number", required: true },
+        { key: "price", label: "قیمت فروش هر GB (تومان)", type: "text", placeholder: "مثلاً 800", required: true },
       ],
       submitLabel: "ذخیره قیمت",
       successMessage: "قیمت فروش ذخیره شد",
       onSubmit: (values) => authApi(`/api/v1/my-plans/${plan.id}/retail-price`, {
         method: "PATCH",
-        body: JSON.stringify({ retail_price_per_gib_toman: Number(values.price) }),
+        body: JSON.stringify({ retail_price_per_gib_toman: exactNumber(values.price) }),
       }),
     }, {
       price: String(plan.retail_price_per_gib_toman || ""),
