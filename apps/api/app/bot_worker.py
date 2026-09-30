@@ -1,7 +1,10 @@
 import asyncio
 import base64
 import hashlib
+import json
 import logging
+import os
+import socket
 import uuid
 from contextlib import suppress
 from decimal import Decimal, InvalidOperation
@@ -11,9 +14,10 @@ from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.redis import RedisStorage
-from aiogram.types import CallbackQuery, InlineKeyboardButton, Message
+from aiogram.types import CallbackQuery, InlineKeyboardButton, Message, Update
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy import func, select
+from redis.asyncio import Redis
 
 from app.core.config import get_settings
 from app.core.security import decrypt_secret, encrypt_secret
@@ -40,6 +44,18 @@ from app.models import (
 )
 from app.services.customer_wallet import apply_customer_wallet_transaction
 from app.services.orders import provision_paid_order
+from app.services.telegram_webhook import (
+    TELEGRAM_CONTROL_GROUP,
+    TELEGRAM_CONTROL_STREAM,
+    TELEGRAM_DONE_TTL_SECONDS,
+    TELEGRAM_PROCESSING_TTL_SECONDS,
+    TELEGRAM_UPDATE_GROUP,
+    TELEGRAM_UPDATE_STREAM,
+    telegram_done_key,
+    telegram_processing_key,
+    telegram_webhook_secret,
+    telegram_webhook_url,
+)
 from app.services.commerce import (
     create_card_order_payment,
     create_customer_card_topup,
@@ -994,62 +1010,314 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
     return dp
 
 
-async def run_bot(bot_id: uuid.UUID, encrypted_token: str):
-    token = decrypt_secret(encrypted_token)
-    bot = Bot(token=token)
-    dp = build_dispatcher(bot_id)
-    try:
-        me = await bot.get_me()
-        logger.info("Starting Telegram bot @%s id=%s", me.username, bot_id)
-        await dp.start_polling(
-            bot,
-            handle_signals=False,
-            allowed_updates=dp.resolve_used_update_types(),
+
+BOT_RUNTIMES: dict[uuid.UUID, tuple[str, Bot, Dispatcher]] = {}
+WEBHOOK_CONCURRENCY = max(1, min(int(os.getenv("TELEGRAM_WEBHOOK_RECONCILE_CONCURRENCY", "20")), 100))
+QUEUE_BATCH_SIZE = max(1, min(int(os.getenv("TELEGRAM_QUEUE_BATCH_SIZE", "50")), 200))
+CONSUMER_NAME = f"{socket.gethostname()}-{os.getpid()}"
+
+
+async def close_runtime(bot_id: uuid.UUID) -> None:
+    runtime = BOT_RUNTIMES.pop(bot_id, None)
+    if not runtime:
+        return
+    _, bot, dp = runtime
+    with suppress(Exception):
+        await dp.storage.close()
+    with suppress(Exception):
+        await bot.session.close()
+
+
+async def load_runtime(bot_id: uuid.UUID) -> tuple[Bot, Dispatcher] | None:
+    async with SessionLocal() as db:
+        row = await db.scalar(
+            select(TelegramBot).where(
+                TelegramBot.id == bot_id,
+                TelegramBot.enabled.is_(True),
+            )
         )
-    except asyncio.CancelledError:
-        raise
-    except Exception:
-        logger.exception("Telegram bot crashed id=%s", bot_id)
+        if not row:
+            await close_runtime(bot_id)
+            return None
+        encrypted_token = row.encrypted_token
+
+    cached = BOT_RUNTIMES.get(bot_id)
+    if cached and cached[0] == encrypted_token:
+        return cached[1], cached[2]
+
+    await close_runtime(bot_id)
+    bot = Bot(token=decrypt_secret(encrypted_token))
+    dp = build_dispatcher(bot_id)
+    BOT_RUNTIMES[bot_id] = (encrypted_token, bot, dp)
+    return bot, dp
+
+
+async def configure_webhook(bot_id: uuid.UUID, encrypted_token: str, enabled: bool) -> None:
+    bot = Bot(token=decrypt_secret(encrypted_token))
+    try:
+        if enabled:
+            await bot.set_webhook(
+                url=telegram_webhook_url(bot_id),
+                secret_token=telegram_webhook_secret(bot_id),
+                allowed_updates=["message", "callback_query"],
+                drop_pending_updates=False,
+                max_connections=100,
+            )
+            me = await bot.get_me()
+            logger.info("Webhook enabled bot=@%s id=%s", me.username, bot_id)
+        else:
+            await bot.delete_webhook(drop_pending_updates=False)
+            logger.info("Webhook removed bot_id=%s", bot_id)
+            await close_runtime(bot_id)
     finally:
-        with suppress(Exception):
-            await dp.storage.close()
         with suppress(Exception):
             await bot.session.close()
 
 
-async def enabled_bots():
+async def reconcile_bot(bot_id: uuid.UUID) -> None:
     async with SessionLocal() as db:
-        rows = (
-            await db.execute(
-                select(TelegramBot).where(TelegramBot.enabled.is_(True))
+        row = await db.scalar(select(TelegramBot).where(TelegramBot.id == bot_id))
+        if not row:
+            await close_runtime(bot_id)
+            return
+        encrypted_token = row.encrypted_token
+        enabled = bool(row.enabled)
+
+    cached = BOT_RUNTIMES.get(bot_id)
+    if cached and cached[0] != encrypted_token:
+        await close_runtime(bot_id)
+    await configure_webhook(bot_id, encrypted_token, enabled)
+
+
+async def reconcile_all_bots() -> None:
+    logger.info("Reconciling existing Telegram bots to webhook mode")
+    last_id: uuid.UUID | None = None
+    semaphore = asyncio.Semaphore(WEBHOOK_CONCURRENCY)
+
+    async def one(bot_id: uuid.UUID, encrypted_token: str, enabled: bool):
+        async with semaphore:
+            try:
+                await configure_webhook(bot_id, encrypted_token, enabled)
+            except Exception:
+                logger.exception("Webhook reconciliation failed bot_id=%s", bot_id)
+
+    while True:
+        async with SessionLocal() as db:
+            stmt = select(
+                TelegramBot.id,
+                TelegramBot.encrypted_token,
+                TelegramBot.enabled,
+            ).order_by(TelegramBot.id).limit(500)
+            if last_id is not None:
+                stmt = stmt.where(TelegramBot.id > last_id)
+            rows = (await db.execute(stmt)).all()
+
+        if not rows:
+            break
+
+        for offset in range(0, len(rows), WEBHOOK_CONCURRENCY):
+            chunk = rows[offset : offset + WEBHOOK_CONCURRENCY]
+            await asyncio.gather(*(one(bot_id, token, enabled) for bot_id, token, enabled in chunk))
+
+        last_id = rows[-1][0]
+
+    logger.info("Telegram webhook reconciliation complete")
+
+
+async def ensure_stream_groups(redis: Redis) -> None:
+    for stream, group in (
+        (TELEGRAM_UPDATE_STREAM, TELEGRAM_UPDATE_GROUP),
+        (TELEGRAM_CONTROL_STREAM, TELEGRAM_CONTROL_GROUP),
+    ):
+        try:
+            await redis.xgroup_create(stream, group, id="0-0", mkstream=True)
+        except Exception as exc:
+            if "BUSYGROUP" not in str(exc):
+                raise
+
+
+async def handle_update_message(
+    redis: Redis,
+    message_id: str,
+    fields: dict[str, str],
+) -> None:
+    try:
+        bot_id = uuid.UUID(fields["bot_id"])
+        update_id = int(fields["update_id"])
+        payload = json.loads(fields["payload"])
+    except Exception:
+        logger.exception("Discarding malformed Telegram queue message id=%s", message_id)
+        await redis.xack(TELEGRAM_UPDATE_STREAM, TELEGRAM_UPDATE_GROUP, message_id)
+        return
+
+    done_key = telegram_done_key(bot_id, update_id)
+    if await redis.exists(done_key):
+        await redis.xack(TELEGRAM_UPDATE_STREAM, TELEGRAM_UPDATE_GROUP, message_id)
+        return
+
+    lock_key = telegram_processing_key(bot_id, update_id)
+    acquired = await redis.set(
+        lock_key,
+        CONSUMER_NAME,
+        nx=True,
+        ex=TELEGRAM_PROCESSING_TTL_SECONDS,
+    )
+    if not acquired:
+        return
+
+    try:
+        runtime = await load_runtime(bot_id)
+        if runtime is None:
+            # Disabled/deleted bots should not keep retrying stale updates.
+            await redis.set(done_key, "disabled", ex=TELEGRAM_DONE_TTL_SECONDS)
+            await redis.xack(TELEGRAM_UPDATE_STREAM, TELEGRAM_UPDATE_GROUP, message_id)
+            return
+
+        bot, dp = runtime
+        update = Update.model_validate(payload, context={"bot": bot})
+        await dp.feed_update(bot, update)
+
+        await redis.set(done_key, "1", ex=TELEGRAM_DONE_TTL_SECONDS)
+        await redis.xack(TELEGRAM_UPDATE_STREAM, TELEGRAM_UPDATE_GROUP, message_id)
+    except Exception:
+        logger.exception(
+            "Telegram update failed bot_id=%s update_id=%s stream_id=%s",
+            bot_id,
+            update_id,
+            message_id,
+        )
+        # Leave the stream entry pending. xautoclaim will retry it.
+    finally:
+        with suppress(Exception):
+            await redis.delete(lock_key)
+
+
+async def recover_pending_updates(redis: Redis) -> None:
+    start_id = "0-0"
+    for _ in range(4):
+        try:
+            result = await redis.xautoclaim(
+                TELEGRAM_UPDATE_STREAM,
+                TELEGRAM_UPDATE_GROUP,
+                CONSUMER_NAME,
+                min_idle_time=30_000,
+                start_id=start_id,
+                count=QUEUE_BATCH_SIZE,
             )
-        ).scalars()
-        return [(row.id, row.encrypted_token) for row in rows]
+        except Exception:
+            logger.exception("Failed to reclaim pending Telegram updates")
+            return
+
+        if not result:
+            return
+
+        start_id = result[0]
+        messages = result[1] if len(result) > 1 else []
+        if not messages:
+            return
+
+        for message_id, fields in messages:
+            await handle_update_message(redis, message_id, fields)
+
+        if start_id == "0-0":
+            return
+
+
+async def consume_updates(redis: Redis) -> None:
+    while True:
+        try:
+            await recover_pending_updates(redis)
+            response = await redis.xreadgroup(
+                TELEGRAM_UPDATE_GROUP,
+                CONSUMER_NAME,
+                {TELEGRAM_UPDATE_STREAM: ">"},
+                count=QUEUE_BATCH_SIZE,
+                block=5_000,
+            )
+            for _, messages in response or []:
+                for message_id, fields in messages:
+                    await handle_update_message(redis, message_id, fields)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Telegram update consumer failed")
+            await asyncio.sleep(1)
+
+
+async def consume_control(redis: Redis) -> None:
+    while True:
+        try:
+            response = await redis.xreadgroup(
+                TELEGRAM_CONTROL_GROUP,
+                CONSUMER_NAME,
+                {TELEGRAM_CONTROL_STREAM: ">"},
+                count=25,
+                block=5_000,
+            )
+            for _, messages in response or []:
+                for message_id, fields in messages:
+                    try:
+                        bot_id = uuid.UUID(fields["bot_id"])
+                        await reconcile_bot(bot_id)
+                        await redis.xack(
+                            TELEGRAM_CONTROL_STREAM,
+                            TELEGRAM_CONTROL_GROUP,
+                            message_id,
+                        )
+                    except Exception:
+                        logger.exception(
+                            "Telegram bot reconcile event failed id=%s",
+                            fields.get("bot_id"),
+                        )
+                        # Keep it pending for the periodic full reconciliation.
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Telegram control consumer failed")
+            await asyncio.sleep(1)
+
+
+async def periodic_reconcile() -> None:
+    # Safety net for missed control messages. This is intentionally infrequent;
+    # normal bot changes are pushed through the Redis control stream immediately.
+    while True:
+        await asyncio.sleep(15 * 60)
+        try:
+            await reconcile_all_bots()
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Periodic Telegram webhook reconciliation failed")
 
 
 async def main():
-    tasks: dict[uuid.UUID, tuple[str, asyncio.Task]] = {}
-    logger.info("PRIMEVPN Telegram worker started")
-    while True:
-        try:
-            current = dict(await enabled_bots())
+    redis = Redis.from_url(settings.redis_url, decode_responses=True)
+    tasks: list[asyncio.Task] = []
+    try:
+        await redis.ping()
+        await ensure_stream_groups(redis)
+        await reconcile_all_bots()
 
-            for bot_id, (token_snapshot, task) in list(tasks.items()):
-                if bot_id not in current or current[bot_id] != token_snapshot or task.done():
-                    task.cancel()
-                    with suppress(asyncio.CancelledError):
-                        await task
-                    tasks.pop(bot_id, None)
-
-            for bot_id, encrypted_token in current.items():
-                if bot_id not in tasks:
-                    task = asyncio.create_task(run_bot(bot_id, encrypted_token))
-                    tasks[bot_id] = (encrypted_token, task)
-
-        except Exception:
-            logger.exception("Telegram reconciliation failed")
-
-        await asyncio.sleep(15)
+        logger.info(
+            "PRIMEVPN Telegram webhook worker started consumer=%s queue_batch=%d",
+            CONSUMER_NAME,
+            QUEUE_BATCH_SIZE,
+        )
+        tasks = [
+            asyncio.create_task(consume_updates(redis)),
+            asyncio.create_task(consume_control(redis)),
+            asyncio.create_task(periodic_reconcile()),
+        ]
+        await asyncio.gather(*tasks)
+    finally:
+        for task in tasks:
+            task.cancel()
+        for task in tasks:
+            with suppress(asyncio.CancelledError):
+                await task
+        for bot_id in list(BOT_RUNTIMES):
+            await close_runtime(bot_id)
+        await redis.aclose()
 
 
 if __name__ == "__main__":
