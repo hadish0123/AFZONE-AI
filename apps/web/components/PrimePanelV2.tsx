@@ -319,6 +319,71 @@ function Modal({
   );
 }
 
+
+type PrimeSelectOption = {
+  value: string;
+  label: string;
+  disabled?: boolean;
+};
+
+function PrimeSelect({
+  value,
+  onChange,
+  options,
+  placeholder = "انتخاب کنید",
+  disabled = false,
+  className = "",
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: PrimeSelectOption[];
+  placeholder?: string;
+  disabled?: boolean;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = options.find((item) => item.value === value);
+
+  return (
+    <div
+      className={`primeSelect ${open ? "open" : ""} ${disabled ? "disabled" : ""} ${className}`}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOpen(false);
+      }}
+    >
+      <button
+        type="button"
+        className="primeSelectTrigger"
+        onClick={() => !disabled && setOpen((old) => !old)}
+        aria-expanded={open}
+        disabled={disabled}
+      >
+        <span className={selected ? "" : "placeholder"}>{selected?.label || placeholder}</span>
+        <ChevronLeft size={18} />
+      </button>
+      {open && !disabled && (
+        <div className="primeSelectMenu">
+          {options.length ? options.map((item) => (
+            <button
+              key={item.value || "__empty__"}
+              type="button"
+              disabled={item.disabled}
+              className={item.value === value ? "selected" : ""}
+              onClick={() => {
+                onChange(item.value);
+                setOpen(false);
+              }}
+            >
+              <span>{item.label}</span>
+              {item.value === value && <Check size={16} />}
+            </button>
+          )) : <div className="primeSelectEmpty">موردی برای انتخاب وجود ندارد</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Pager({
   page,
   pages,
@@ -411,6 +476,7 @@ export default function PrimePanelV2({
   const [adminSort, setAdminSort] = useState("newest");
   const [adminPickerSearch, setAdminPickerSearch] = useState("");
   const [adminOptions, setAdminOptions] = useState<AdminRow[]>([]);
+  const [assignmentAdminId, setAssignmentAdminId] = useState("");
   const [assignmentPrice, setAssignmentPrice] = useState("");
   const [clientSearch, setClientSearch] = useState("");
   const [clientStatus, setClientStatus] = useState("");
@@ -719,7 +785,11 @@ export default function PrimePanelV2({
     if (section === "admins") setModal("admin-create");
     else if (section === "clients") {
       if (!plans.length) await loadPlans();
-      if (user.role === "owner") await searchAdminOptions("");
+      if (user.role === "owner") {
+        await searchAdminOptions("");
+        setClientPlanOptions([]);
+        setClientForm((old) => ({ ...old, admin_id: "", plan_id: "" }));
+      }
       setModal("client-create");
     }
     else if (section === "plans" && user.role === "owner") {
@@ -753,6 +823,19 @@ export default function PrimePanelV2({
 
   async function createClient(e: FormEvent) {
     e.preventDefault();
+    setError("");
+    if (user.role === "owner" && !clientForm.admin_id) {
+      setError("ابتدا نماینده را انتخاب کنید.");
+      return;
+    }
+    if (!clientForm.plan_id) {
+      setError(
+        user.role === "owner"
+          ? "برای این نماینده یک پلن تخصیص‌داده‌شده انتخاب کنید."
+          : "یک پلن فعال انتخاب کنید."
+      );
+      return;
+    }
     await run(() => authApi("/api/v1/clients", {
       method: "POST",
       body: JSON.stringify({
@@ -765,6 +848,42 @@ export default function PrimePanelV2({
       }),
     }), "کلاینت روی PasarGuard ساخته شد");
     setClientForm((v) => ({ ...v, username: "" }));
+  }
+
+  async function assignSelectedPlan() {
+    if (!selectedPlan) return;
+    setError("");
+    if (!assignmentAdminId) {
+      setError("برای تخصیص پلن، ابتدا نماینده را انتخاب کنید.");
+      return;
+    }
+
+    const retailPrice = Number(assignmentPrice);
+    const minimumPrice = Number(selectedPlan.base_price_per_gib_toman || selectedPlan.cost_per_gib_toman || 0);
+    if (!Number.isFinite(retailPrice) || retailPrice <= 0) {
+      setError("قیمت فروش هر GB را به‌صورت صحیح وارد کنید.");
+      return;
+    }
+    if (retailPrice < minimumPrice) {
+      setError(`قیمت فروش نمی‌تواند کمتر از قیمت پایه (${money(minimumPrice)}) باشد.`);
+      return;
+    }
+
+    const targetAdminId = assignmentAdminId;
+    await run(
+      () => authApi(`/api/v1/admins/${targetAdminId}/plans/${selectedPlan.id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          retail_price_per_gib_toman: retailPrice,
+          bot_visible: true,
+        }),
+      }),
+      "پلن با موفقیت به نماینده تخصیص داده شد"
+    );
+
+    if (clientForm.admin_id === targetAdminId) {
+      await chooseClientAdmin(targetAdminId);
+    }
   }
 
   async function createPlan(e: FormEvent) {
@@ -1253,6 +1372,7 @@ export default function PrimePanelV2({
                   className="primePlanCard"
                   onClick={async () => {
                     setSelectedId(plan.id);
+                    setAssignmentAdminId("");
                     if (user.role === "owner") await searchAdminOptions("");
                     setAssignmentPrice(plan.base_price_per_gib_toman || "");
                     setModal("plan-manage");
@@ -1973,13 +2093,28 @@ export default function PrimePanelV2({
               <div className="v2PickerSearch"><input value={adminPickerSearch} onChange={(e) => setAdminPickerSearch(e.target.value)} placeholder="نام کاربری یا نام نماینده" /><button type="button" onClick={() => searchAdminOptions()}>جستجو</button></div>
             </label>
             <label>نماینده
-              <select value={clientForm.admin_id} onChange={(e) => chooseClientAdmin(e.target.value)} required>
-                <option value="">انتخاب نماینده</option>
-                {adminOptions.map((a) => <option key={a.id} value={a.id}>{a.display_name || a.username} (@{a.username})</option>)}
-              </select>
+              <PrimeSelect
+                value={clientForm.admin_id}
+                onChange={chooseClientAdmin}
+                placeholder="انتخاب نماینده"
+                options={adminOptions.map((a) => ({ value: a.id, label: `${a.display_name || a.username} (@${a.username})` }))}
+              />
             </label>
           </div>}
-          <label>پلن<select value={clientForm.plan_id} onChange={(e) => setClientForm({ ...clientForm, plan_id: e.target.value })} required><option value="">انتخاب پلن</option>{(user.role === "owner" ? clientPlanOptions : plans).filter((p) => p.enabled !== false).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
+          <label>پلن
+            <PrimeSelect
+              value={clientForm.plan_id}
+              onChange={(value) => setClientForm({ ...clientForm, plan_id: value })}
+              placeholder={user.role === "owner" && !clientForm.admin_id ? "ابتدا نماینده را انتخاب کنید" : "انتخاب پلن"}
+              disabled={user.role === "owner" && !clientForm.admin_id}
+              options={(user.role === "owner" ? clientPlanOptions : plans)
+                .filter((p) => p.enabled !== false)
+                .map((p) => ({ value: p.id, label: p.name }))}
+            />
+            {user.role === "owner" && clientForm.admin_id && !clientPlanOptions.length && (
+              <small className="primeFieldHint warn">برای این نماینده هنوز پلنی تخصیص داده نشده است.</small>
+            )}
+          </label>
           <label>حجم GB<input type="number" step="0.1" value={clientForm.quota_gib} onChange={(e) => setClientForm({ ...clientForm, quota_gib: e.target.value })} required /></label>
           <label>مدت روز<input type="number" value={clientForm.duration_days} onChange={(e) => setClientForm({ ...clientForm, duration_days: e.target.value })} /></label>
           <label>تعداد دستگاه<input type="number" value={clientForm.hwid_limit} onChange={(e) => setClientForm({ ...clientForm, hwid_limit: e.target.value })} /></label>
@@ -2025,7 +2160,14 @@ export default function PrimePanelV2({
       <Modal open={modal === "plan-create"} title="ساخت پلن پایه" onClose={() => setModal(null)}>
         <form className="v2Form primePlanCreateForm" onSubmit={createPlan}>
           <label>نام پلن<input value={planForm.name} onChange={(e) => setPlanForm({ ...planForm, name: e.target.value })} required /></label>
-          <label>Group<select value={planForm.group_id} onChange={(e) => setPlanForm({ ...planForm, group_id: e.target.value })} required><option value="">انتخاب Group</option>{groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}</select></label>
+          <label>Group
+            <PrimeSelect
+              value={planForm.group_id}
+              onChange={(value) => setPlanForm({ ...planForm, group_id: value })}
+              placeholder="انتخاب Group"
+              options={groups.map((g) => ({ value: g.id, label: g.name }))}
+            />
+          </label>
           <label>قیمت پایه هر GB<input type="number" value={planForm.base_price_per_gib_toman} onChange={(e) => setPlanForm({ ...planForm, base_price_per_gib_toman: e.target.value })} required /></label>
           <label>حداقل GB<input type="number" value={planForm.min_quota_gib} onChange={(e) => setPlanForm({ ...planForm, min_quota_gib: e.target.value })} /></label>
           <label>حداکثر GB<input type="number" value={planForm.max_quota_gib} onChange={(e) => setPlanForm({ ...planForm, max_quota_gib: e.target.value })} /></label>
@@ -2045,12 +2187,15 @@ export default function PrimePanelV2({
             <div className="v2AssignBox">
               <strong>تخصیص این پلن به نماینده</strong>
               <div className="v2PickerSearch"><input value={adminPickerSearch} onChange={(e) => setAdminPickerSearch(e.target.value)} placeholder="جستجوی نماینده" /><button onClick={() => searchAdminOptions()}>جستجو</button></div>
-              <select value={clientForm.admin_id} onChange={(e) => setClientForm({ ...clientForm, admin_id: e.target.value })}>
-                <option value="">انتخاب نماینده</option>
-                {adminOptions.map((a) => <option key={a.id} value={a.id}>{a.display_name || a.username} (@{a.username})</option>)}
-              </select>
-              <input type="number" placeholder="قیمت فروش هر GB" value={assignmentPrice} onChange={(e) => setAssignmentPrice(e.target.value)} />
-              <button className="v2Primary" onClick={() => run(() => authApi(`/api/v1/admins/${clientForm.admin_id}/plans/${selectedPlan.id}`, { method: "PUT", body: JSON.stringify({ retail_price_per_gib_toman: Number(assignmentPrice), bot_visible: true }) }), "پلن به نماینده تخصیص داده شد")}>تخصیص پلن</button>
+              <PrimeSelect
+                value={assignmentAdminId}
+                onChange={setAssignmentAdminId}
+                placeholder="انتخاب نماینده"
+                options={adminOptions.map((a) => ({ value: a.id, label: `${a.display_name || a.username} (@${a.username})` }))}
+              />
+              <input type="number" min={selectedPlan.base_price_per_gib_toman || selectedPlan.cost_per_gib_toman || "1"} placeholder="قیمت فروش هر GB" value={assignmentPrice} onChange={(e) => setAssignmentPrice(e.target.value)} />
+              <button className="v2Primary" disabled={busy || !assignmentAdminId || !assignmentPrice} onClick={assignSelectedPlan}>تخصیص پلن</button>
+              {!assignmentAdminId && <small className="primeFieldHint">برای ادامه یک نماینده فعال را انتخاب کنید.</small>}
             </div>
             <button onClick={() => {
               const name = window.prompt("نام پلن:", selectedPlan.name);
@@ -2100,10 +2245,12 @@ export default function PrimePanelV2({
               <div className="v2PickerSearch"><input value={adminPickerSearch} onChange={(e) => setAdminPickerSearch(e.target.value)} placeholder="نام کاربری نماینده" /><button type="button" onClick={() => searchAdminOptions()}>جستجو</button></div>
             </label>
             <label>نماینده
-              <select value={botForm.admin_id} onChange={(e) => setBotForm({ ...botForm, admin_id: e.target.value })} required>
-                <option value="">انتخاب نماینده</option>
-                {adminOptions.map((a) => <option key={a.id} value={a.id}>{a.display_name || a.username} (@{a.username})</option>)}
-              </select>
+              <PrimeSelect
+                value={botForm.admin_id}
+                onChange={(value) => setBotForm({ ...botForm, admin_id: value })}
+                placeholder="انتخاب نماینده"
+                options={adminOptions.map((a) => ({ value: a.id, label: `${a.display_name || a.username} (@${a.username})` }))}
+              />
             </label>
           </div>}
           <label className="v2Check"><input type="checkbox" checked={botForm.customer_wallet_enabled} onChange={(e) => setBotForm({ ...botForm, customer_wallet_enabled: e.target.checked })} /> کیف پول مشتری</label>
