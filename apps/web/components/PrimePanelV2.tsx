@@ -67,6 +67,7 @@ type AdminRow = {
   low_balance_threshold_toman?: string;
   debt_limit_toman?: string;
   client_count: number;
+  plan_count?: number;
   created_at: string;
 };
 
@@ -403,6 +404,7 @@ export default function PrimePanelV2({
 
   const [adminSearch, setAdminSearch] = useState("");
   const [adminStatus, setAdminStatus] = useState("");
+  const [adminSort, setAdminSort] = useState("newest");
   const [adminPickerSearch, setAdminPickerSearch] = useState("");
   const [adminOptions, setAdminOptions] = useState<AdminRow[]>([]);
   const [assignmentPrice, setAssignmentPrice] = useState("");
@@ -551,6 +553,7 @@ export default function PrimePanelV2({
       `/api/v1/directory/admins?${qs({
         q: adminSearch,
         status_filter: adminStatus,
+        sort: adminSort,
         page,
         page_size: 25,
       })}`
@@ -1036,33 +1039,85 @@ export default function PrimePanelV2({
 
   function renderAdmins() {
     return (
-      <div className="v2Stack">
-        <Toolbar search={adminSearch} onSearch={setAdminSearch} placeholder="جستجوی نام کاربری یا نام نماینده">
-          <select value={adminStatus} onChange={(e) => setAdminStatus(e.target.value)}>
-            <option value="">همه وضعیت‌ها</option>
-            <option value="active">فعال</option>
-            <option value="disabled">غیرفعال</option>
-          </select>
-          <button onClick={() => loadAdmins(1)}><SlidersHorizontal size={16} /> اعمال</button>
-        </Toolbar>
-        <article className="v2Card v2TableCard">
-          <div className="v2Table">
-            <div className="v2Tr v2Th">
-              <span>نماینده</span><span>کلاینت</span><span>کیف پول</span><span>وضعیت</span><span />
-            </div>
-            {adminsPage.items.map((a) => (
-              <div className="v2Tr" key={a.id}>
-                <div><strong>{a.display_name || a.username}</strong><small>@{a.username}</small></div>
-                <span>{a.client_count.toLocaleString("fa-IR")}</span>
-                <span>{money(a.wallet_balance_toman)}</span>
-                <span className={a.status === "active" ? "v2Badge ok" : "v2Badge off"}>{a.status}</span>
-                <button className="v2More" onClick={() => openAdminManage(a)}><MoreVertical size={18} /></button>
-              </div>
-            ))}
-            {!adminsPage.items.length && <Empty text="نماینده‌ای پیدا نشد." />}
+      <div className="primeAdminsPage">
+        <section className="primeAdminDirectory">
+          <div className="primeAdminSearchBox">
+            <button onClick={() => loadAdmins(1)} aria-label="جستجو"><Search size={25} /></button>
+            <input
+              value={adminSearch}
+              onChange={(e) => setAdminSearch(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && loadAdmins(1)}
+              placeholder="جستجوی نام کاربری یا نام نماینده"
+            />
+            <i className="primeAdminSearchWave" />
           </div>
-          <Pager page={adminsPage.page} pages={adminsPage.pages} total={adminsPage.total} onPage={loadAdmins} />
-        </article>
+
+          <div className="primeAdminFilters">
+            <button className="primeAdminFilterButton" onClick={() => loadAdmins(1)} aria-label="اعمال فیلتر">
+              <SlidersHorizontal size={24} />
+            </button>
+            <label>
+              <select value={adminSort} onChange={(e) => setAdminSort(e.target.value)}>
+                <option value="newest">جدیدترین</option>
+                <option value="oldest">قدیمی‌ترین</option>
+              </select>
+              <ChevronLeft size={18} />
+            </label>
+            <label>
+              <select value={adminStatus} onChange={(e) => setAdminStatus(e.target.value)}>
+                <option value="">همه وضعیت‌ها</option>
+                <option value="active">فعال</option>
+                <option value="disabled">غیرفعال</option>
+              </select>
+              <ChevronLeft size={18} />
+            </label>
+          </div>
+
+          <div className="primeAdminTable">
+            <div className="primeAdminTableHead">
+              <span>نماینده</span>
+              <span>کلاینت</span>
+              <span>پلن‌ها</span>
+              <span>وضعیت</span>
+            </div>
+
+            <div className="primeAdminTableBody">
+              {adminsPage.items.map((admin) => (
+                <button className="primeAdminRow" key={admin.id} onClick={() => openAdminManage(admin)}>
+                  <div>
+                    <strong>{admin.display_name || admin.username}</strong>
+                    <small>@{admin.username}</small>
+                  </div>
+                  <span>{admin.client_count.toLocaleString("fa-IR")}</span>
+                  <span>{Number(admin.plan_count || 0).toLocaleString("fa-IR")}</span>
+                  <span className={admin.status === "active" ? "primeAdminStatus active" : "primeAdminStatus disabled"}>
+                    {admin.status === "active" ? "فعال" : "غیرفعال"}
+                  </span>
+                </button>
+              ))}
+
+              {!adminsPage.items.length && (
+                <div className="primeAdminEmpty">
+                  <span><Users size={39} /></span>
+                  <strong>نماینده‌ای پیدا نشد</strong>
+                </div>
+              )}
+            </div>
+
+            <div className="primeAdminPager">
+              <span>{adminsPage.total.toLocaleString("fa-IR")} ردیف</span>
+              <div>
+                <button disabled={adminsPage.page <= 1} onClick={() => loadAdmins(adminsPage.page - 1)}>
+                  <ChevronRight size={21} />
+                </button>
+                <b>{adminsPage.page.toLocaleString("fa-IR")} / {Math.max(adminsPage.pages, 1).toLocaleString("fa-IR")}</b>
+                <button disabled={adminsPage.page >= adminsPage.pages} onClick={() => loadAdmins(adminsPage.page + 1)}>
+                  <ChevronLeft size={21} />
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
     );
   }
@@ -1497,12 +1552,12 @@ export default function PrimePanelV2({
 
   return (
     <main className="v2App">
-      <header className={section === "dashboard" ? "v2Topbar primeDashTopbar" : "v2Topbar"}>
-        <div className={section === "dashboard" ? "v2Brand primeDashBrand" : "v2Brand"}>
-          <div className="v2BrandMark">{section === "dashboard" ? <ShieldCheck size={22} /> : <Gauge size={21} />}</div>
+      <header className={section === "dashboard" || section === "admins" ? "v2Topbar primeDashTopbar" : "v2Topbar"}>
+        <div className={section === "dashboard" || section === "admins" ? "v2Brand primeDashBrand" : "v2Brand"}>
+          <div className="v2BrandMark">{section === "dashboard" || section === "admins" ? <ShieldCheck size={22} /> : <Gauge size={21} />}</div>
           <div><strong>PRIMEVPN</strong><span>{user.role === "owner" ? "OWNER CONTROL" : "RESELLER PANEL"}</span></div>
         </div>
-        <div className={section === "dashboard" ? "v2TopActions primeDashTopActions" : "v2TopActions"}>
+        <div className={section === "dashboard" || section === "admins" ? "v2TopActions primeDashTopActions" : "v2TopActions"}>
           <button className="v2MenuButton" title="منو" onClick={() => setDrawer(true)}><MoreVertical size={23} /></button>
           <button title="بروزرسانی" onClick={reloadSection}><RefreshCw size={18} /></button>
           {section === "dashboard" && (
@@ -1555,7 +1610,7 @@ export default function PrimePanelV2({
       )}
 
       <section className="v2Content">
-        <div className={section === "dashboard" ? "v2PageHead primeDashPageHead" : "v2PageHead"}>
+        <div className={section === "dashboard" ? "v2PageHead primeDashPageHead" : section === "admins" ? "v2PageHead primeAdminPageHead" : "v2PageHead"}>
           <div>
             <span className="v2Eyebrow">PRIME NETWORK · PRODUCTION</span>
             <h1>{activeNav.label}</h1>
@@ -1572,7 +1627,7 @@ export default function PrimePanelV2({
         {pageContent()}
       </section>
 
-      {canCreate && <button className="v2Fab" onClick={contextualCreate}><Plus size={25} /></button>}
+      {canCreate && section !== "admins" && <button className="v2Fab" onClick={contextualCreate}><Plus size={25} /></button>}
 
       <Modal open={modal === "admin-create"} title="ساخت نماینده" onClose={() => setModal(null)}>
         <form className="v2Form" onSubmit={createAdmin}>
