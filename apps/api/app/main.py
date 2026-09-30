@@ -583,12 +583,7 @@ async def list_groups(
         stmt = (
             select(PasarGuardGroup)
             .join(Plan, Plan.group_id == PasarGuardGroup.id)
-            .join(AdminPlan, AdminPlan.plan_id == Plan.id)
-            .where(
-                AdminPlan.admin_id == user.id,
-                AdminPlan.enabled.is_(True),
-                Plan.enabled.is_(True),
-            )
+            .where(Plan.enabled.is_(True))
             .distinct()
             .order_by(PasarGuardGroup.name)
         )
@@ -603,7 +598,7 @@ async def list_groups(
             "inbound_tags": group.inbound_tags,
         } for group in groups]
 
-    # Admins only receive the group metadata needed by their own assigned plans.
+    # Admins receive only safe metadata for groups used by active global plans.
     # Do not expose central PasarGuard connection IDs, remote IDs or inbound tags.
     return [{
         "id": str(group.id),
@@ -952,17 +947,8 @@ async def update_client(
 
     plan = await db.scalar(select(Plan).where(Plan.id == client.plan_id)) if client.plan_id else None
     if user.role == Role.ADMIN:
-        if not plan:
-            raise HTTPException(status_code=409, detail="client is not attached to a managed plan")
-        assignment = await db.scalar(
-            select(AdminPlan).where(
-                AdminPlan.admin_id == user.id,
-                AdminPlan.plan_id == plan.id,
-                AdminPlan.enabled.is_(True),
-            )
-        )
-        if not assignment:
-            raise HTTPException(status_code=403, detail="plan is no longer assigned to this admin")
+        if not plan or not plan.enabled:
+            raise HTTPException(status_code=409, detail="client plan is no longer active")
         if payload.quota_gib is not None or payload.duration_days_from_now is not None:
             wallet = await db.scalar(select(Wallet).where(Wallet.owner_user_id == user.id))
             if wallet and wallet.block_renewals_when_low and wallet.balance_toman <= wallet.low_balance_threshold_toman:
@@ -2874,12 +2860,8 @@ async def directory_admins(
         .scalar_subquery()
     )
     plan_count_sq = (
-        select(func.count(AdminPlan.id))
-        .where(
-            AdminPlan.admin_id == User.id,
-            AdminPlan.enabled.is_(True),
-        )
-        .correlate(User)
+        select(func.count(Plan.id))
+        .where(Plan.enabled.is_(True))
         .scalar_subquery()
     )
 
