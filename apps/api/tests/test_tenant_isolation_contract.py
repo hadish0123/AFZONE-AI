@@ -73,3 +73,47 @@ def test_telegram_manager_requires_active_owner_of_enabled_bot():
     assert "User.role == Role.ADMIN" in block
     assert "User.status == AccountStatus.ACTIVE" in block
     assert "int(admin.telegram_id) != int(tg_user.id)" in block
+
+
+def test_global_plans_are_not_gated_by_materialized_admin_assignments():
+    groups = function_block(MAIN, "list_groups")
+    create_client = function_block(MAIN, "create_client")
+    update_client = function_block(MAIN, "update_client")
+    list_plans = function_block(MAIN, "list_plans")
+
+    assert ".join(AdminPlan, AdminPlan.plan_id == Plan.id)" not in groups
+    assert "plan is not assigned to this admin" not in create_client
+    assert "plan is no longer assigned to this admin" not in update_client
+    assert "outerjoin(" in list_plans
+    assert '"automatic": admin_plan is None' in list_plans
+
+
+def test_management_routes_are_not_duplicated():
+    assert MAIN.count("# ---- Production management completion") == 1
+    for name in (
+        "update_admin",
+        "update_connection",
+        "update_plan",
+        "update_my_retail_price",
+        "get_bot_catalog",
+        "update_bot_catalog",
+        "directory_admins",
+        "directory_clients",
+    ):
+        assert MAIN.count(f"async def {name}(") == 1, name
+
+
+def test_bot_catalog_is_global_and_panel_has_no_native_prompts_or_selects():
+    bot_source = (ROOT / "app" / "bot_worker.py").read_text(encoding="utf-8")
+    web_source = (ROOT.parent / "web" / "components" / "PrimePanelV2.tsx").read_text(encoding="utf-8")
+
+    show_plans = function_block(bot_source, "show_plans")
+    assert "TelegramBotPlan" not in show_plans
+    assert "outerjoin(" in show_plans
+    assert "Plan.enabled.is_(True)" in show_plans
+
+    assert "window.prompt" not in web_source
+    assert "window.confirm" not in web_source
+    assert "<select" not in web_source
+    assert "تخصیص این پلن به نماینده" not in web_source
+    assert "فقط پلن‌های انتخاب‌شده در این Bot" not in web_source
