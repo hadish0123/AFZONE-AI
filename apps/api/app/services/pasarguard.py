@@ -49,11 +49,30 @@ class PasarGuardClient:
     async def list_users(self, **params):
         return await self.request("GET", "/api/users", params=params)
 
+    async def get_user(self, username: str):
+        return await self.request("GET", f"/api/user/by-username/{username}")
+
+    async def get_user_by_id(self, user_id: int):
+        return await self.request("GET", f"/api/user/by-id/{user_id}")
+
     async def create_user(self, payload: dict):
         return await self.request("POST", "/api/user", json=payload)
 
-    async def update_user(self, user_id: int, payload: dict):
-        return await self.request("PUT", f"/api/user/{user_id}", json=payload)
+    async def update_user(self, username: str, payload: dict):
+        return await self.request("PUT", f"/api/user/by-username/{username}", json=payload)
 
-    async def delete_user(self, user_id: int):
-        return await self.request("DELETE", f"/api/user/{user_id}")
+    async def set_user_disabled(self, username: str, disabled: bool):
+        return await self.request(
+            "PUT",
+            f"/api/user/by-username/{username}/disabled",
+            json={"disabled": disabled},
+        )
+
+    async def reset_user_usage(self, username: str):
+        return await self.request("POST", f"/api/user/by-username/{username}/reset")
+
+    async def revoke_subscription(self, username: str):
+        return await self.request("POST", f"/api/user/by-username/{username}/revoke_sub")
+
+    async def delete_user(self, username: str):
+        return await self.request("DELETE", f"/api/user/by-username/{username}")
