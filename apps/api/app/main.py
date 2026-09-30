@@ -2182,6 +2182,48 @@ async def disable_plan(
     return None
 
 
+@app.delete(f"{settings.api_prefix}/plans/{{plan_id}}/hard", status_code=204)
+async def hard_delete_plan(
+    plan_id: uuid.UUID,
+    request: Request,
+    owner: User = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+):
+    plan = await db.scalar(select(Plan).where(Plan.id == plan_id).with_for_update())
+    if not plan:
+        raise HTTPException(status_code=404, detail="plan not found")
+
+    # Preserve accounting/provisioning history. A plan that has already produced
+    # clients or orders must be disabled instead of physically deleting history.
+    linked_client = await db.scalar(select(Client.id).where(Client.plan_id == plan_id).limit(1))
+    linked_order = await db.scalar(select(Order.id).where(Order.plan_id == plan_id).limit(1))
+    if linked_client or linked_order:
+        raise HTTPException(
+            status_code=409,
+            detail="این پلن سابقه کلاینت یا سفارش دارد؛ برای حفظ گزارش‌ها فقط می‌توان آن را خاموش کرد.",
+        )
+
+    before = {
+        "name": plan.name,
+        "enabled": plan.enabled,
+        "base_price_per_gib_toman": str(plan.base_price_per_gib_toman),
+    }
+    await write_audit(
+        db,
+        actor_user_id=owner.id,
+        action="plan.delete",
+        entity_type="plan",
+        entity_id=str(plan.id),
+        before_data=before,
+        after_data={"deleted": True},
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.delete(plan)
+    await db.commit()
+    return None
+
+
 @app.delete(f"{settings.api_prefix}/admins/{{admin_id}}/plans/{{plan_id}}", status_code=204)
 async def unassign_admin_plan(
     admin_id: uuid.UUID,
