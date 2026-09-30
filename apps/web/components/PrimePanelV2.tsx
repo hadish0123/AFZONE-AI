@@ -1062,7 +1062,7 @@ export default function PrimePanelV2({
       description: `ویرایش ${admin.display_name || admin.username}`,
       fields: [
         { key: "display_name", label: "نام نمایشی", type: "text" },
-        { key: "telegram_id", label: "Telegram ID", type: "number" },
+        { key: "telegram_id", label: "شناسه تلگرام", type: "number" },
         { key: "threshold", label: "حد هشدار کیف پول", type: "number" },
         { key: "debt", label: "سقف بدهی", type: "number" },
         { key: "password", label: "رمز جدید", type: "password", placeholder: "خالی = بدون تغییر" },
@@ -1154,8 +1154,8 @@ export default function PrimePanelV2({
       description: connection.name,
       fields: [
         { key: "name", label: "نام اتصال", type: "text", required: true },
-        { key: "url", label: "Panel URL", type: "url", required: true },
-        { key: "token", label: "API Token جدید", type: "password", placeholder: "خالی = بدون تغییر" },
+        { key: "url", label: "آدرس پنل", type: "url", required: true },
+        { key: "token", label: "توکن جدید API", type: "password", placeholder: "خالی = بدون تغییر" },
       ],
       submitLabel: "ذخیره اتصال",
       successMessage: "اتصال ویرایش شد",
@@ -1181,7 +1181,7 @@ export default function PrimePanelV2({
       description: bot.username ? `@${bot.username}` : bot.name,
       fields: [
         { key: "name", label: "نام ربات", type: "text", required: true },
-        { key: "token", label: "Bot Token جدید", type: "password", placeholder: "خالی = بدون تغییر" },
+        { key: "token", label: "توکن جدید ربات", type: "password", placeholder: "خالی = بدون تغییر" },
       ],
       submitLabel: "ذخیره ربات",
       successMessage: "ربات ویرایش شد",
@@ -1202,10 +1202,10 @@ export default function PrimePanelV2({
       const setup = await authApi<{ secret: string; recovery_codes: string[] }>("/api/v1/security/2fa/setup", { method: "POST" });
       openActionDialog({
         title: "فعال‌سازی 2FA",
-        description: "Secret و Recovery Codeها را قبل از ادامه در جای امن ذخیره کنید.",
+        description: "کلید فعال‌سازی و کدهای بازیابی را قبل از ادامه در جای امن ذخیره کنید.",
         notice: `Secret: ${setup.secret}\n\nRecovery Codes:\n${setup.recovery_codes.join("   ")}`,
         fields: [
-          { key: "code", label: "کد ۶ رقمی Authenticator", type: "number", required: true },
+          { key: "code", label: "کد ۶ رقمی برنامه احراز هویت", type: "number", required: true },
         ],
         submitLabel: "فعال‌سازی 2FA",
         successMessage: "2FA فعال شد",
@@ -1224,9 +1224,9 @@ export default function PrimePanelV2({
   function openDisable2FA() {
     openActionDialog({
       title: "غیرفعال‌کردن 2FA",
-      description: "برای تأیید، کد فعلی Authenticator را وارد کنید.",
+      description: "برای تأیید، کد فعلی برنامه احراز هویت را وارد کنید.",
       fields: [
-        { key: "code", label: "کد Authenticator", type: "number", required: true },
+        { key: "code", label: "کد برنامه احراز هویت", type: "number", required: true },
       ],
       submitLabel: "غیرفعال‌کردن 2FA",
       destructive: true,
@@ -1240,16 +1240,16 @@ export default function PrimePanelV2({
 
   async function restoreBackup() {
     if (!backupFile) {
-      setError("فایل Backup را انتخاب کنید");
+      setError("فایل پشتیبان را انتخاب کنید");
       return;
     }
     openActionDialog({
-      title: "بازیابی Backup",
-      description: "Restore به‌صورت Merge انجام می‌شود و داده فعلی حذف نمی‌شود.",
+      title: "بازیابی فایل پشتیبان",
+      description: "بازیابی به‌صورت ادغامی انجام می‌شود و داده‌های فعلی حذف نمی‌شوند.",
       fields: [],
       submitLabel: "شروع بازیابی",
       destructive: true,
-      successMessage: "Backup بازیابی شد",
+      successMessage: "فایل پشتیبان بازیابی شد",
       onSubmit: async () => {
         const fd = new FormData();
         fd.append("backup", backupFile);
@@ -2048,13 +2048,13 @@ export default function PrimePanelV2({
           <section className="primeAuditPanel">
             <div className="primeAuditHead">
               <div className="primeAuditIcon"><ShieldCheck size={27} /></div>
-              <div><strong>Audit Log</strong><span>سوابق حساب‌های سیستم</span></div>
+              <div><strong>گزارش رویدادها</strong><span>سوابق حساب‌های سیستم</span></div>
               <div className="primeAuditSideIcon"><CreditCard size={27} /></div>
             </div>
 
             <div className="primeAuditTable">
               <div className="primeAuditTableHead">
-                <span>حساب</span><span>Entity</span><span>IP</span><span>عملیات</span><span>زمان</span>
+                <span>حساب</span><span>موجودیت</span><span>آدرس IP</span><span>عملیات</span><span>زمان</span>
               </div>
               <div className="primeAuditTableBody">
                 {audits.map((audit) => (
@@ -2130,10 +2130,10 @@ export default function PrimePanelV2({
           </div>
           <div className="primeGatewayBody">
             <label>
-              <span>شناسه پذیرنده (Merchant ID)</span>
+              <span>شناسه پذیرنده درگاه</span>
               <input
                 type="password"
-                placeholder={paymentProfile?.gateway_configured ? "برای تغییر Merchant ID وارد کنید" : "Merchant ID"}
+                placeholder={paymentProfile?.gateway_configured ? "برای تغییر شناسه پذیرنده وارد کنید" : "شناسه پذیرنده"}
                 value={gatewayMerchant}
                 onChange={(e) => setGatewayMerchant(e.target.value)}
               />
@@ -2167,8 +2167,8 @@ export default function PrimePanelV2({
             <div><strong>ظاهر پنل</strong><span>انتخاب تم رنگی پنل مدیریت</span></div>
           </div>
           <div className="primeThemeOptions">
-            <button className={theme === "dark" ? "active" : ""} onClick={() => setTheme("dark")}><i className="dark" />Dark</button>
-            <button className={theme === "light" ? "active" : ""} onClick={() => setTheme("light")}><i className="light" />Light</button>
+            <button className={theme === "dark" ? "active" : ""} onClick={() => setTheme("dark")}><i className="dark" />تیره</button>
+            <button className={theme === "light" ? "active" : ""} onClick={() => setTheme("light")}><i className="light" />روشن</button>
             <button className={accent === "cyan" ? "active" : ""} onClick={() => setAccent("cyan")}><i className="cyan" />cyan</button>
             <button className={accent === "violet" ? "active" : ""} onClick={() => setAccent("violet")}><i className="violet" />violet</button>
             <button className={accent === "emerald" ? "active" : ""} onClick={() => setAccent("emerald")}><i className="emerald" />emerald</button>
@@ -2184,7 +2184,7 @@ export default function PrimePanelV2({
             </div>
             <div className="primeSecurityBody">
               <div>
-                <p><ShieldCheck size={18} /><span>Recovery Codes: 2FA</span><small>پشتیبان‌گیری کدهای بازیابی</small></p>
+                <p><ShieldCheck size={18} /><span>کدهای بازیابی 2FA</span><small>پشتیبان‌گیری کدهای بازیابی</small></p>
                 <p><ShieldCheck size={18} /><span>وضعیت: {twoFactor?.enabled ? "فعال" : "غیرفعال"}</span><small>احراز هویت دو مرحله‌ای پنل</small></p>
               </div>
               {!twoFactor?.enabled ? (
@@ -2200,12 +2200,12 @@ export default function PrimePanelV2({
           <section className="primeSettingsCard primeBackupSection">
             <div className="primeSettingsHead">
               <div className="primeSettingsIcon"><Database size={25} /></div>
-              <div><strong>Backup & Recovery</strong><span>پشتیبان‌گیری و بازیابی اطلاعات پنل</span></div>
+              <div><strong>پشتیبان‌گیری و بازیابی</strong><span>پشتیبان‌گیری و بازیابی اطلاعات پنل</span></div>
             </div>
             <div className="primeBackupRows">
               <button onClick={exportBackup}><span><CreditCard size={21} /></span><div><strong>دانلود فایل پشتیبان</strong><small>تهیه نسخه پشتیبان از تمام اطلاعات</small></div><ChevronLeft size={19} /></button>
               <label><span><CreditCard size={21} /></span><div><strong>بازیابی اطلاعات</strong><small>{backupFile?.name || "انتخاب فایل پشتیبان برای بازیابی"}</small></div><input type="file" accept=".pvbackup" onChange={(e) => setBackupFile(e.target.files?.[0] || null)} /><ChevronLeft size={19} /></label>
-              <button onClick={restoreBackup}><span><Settings size={21} /></span><div><strong>Merge Restore</strong><small>ادغام نسخه پشتیبان با اطلاعات فعلی</small></div><ChevronLeft size={19} /></button>
+              <button onClick={restoreBackup}><span><Settings size={21} /></span><div><strong>بازیابی ادغامی</strong><small>ادغام نسخه پشتیبان با اطلاعات فعلی</small></div><ChevronLeft size={19} /></button>
             </div>
           </section>
         )}
@@ -2442,7 +2442,7 @@ export default function PrimePanelV2({
             <PrimeSelect
               value={planForm.group_id}
               onChange={(value) => setPlanForm({ ...planForm, group_id: value })}
-              placeholder="انتخاب Group"
+              placeholder="انتخاب گروه"
               options={groups.map((g) => ({ value: g.id, label: g.name }))}
             />
           </label>
@@ -2487,7 +2487,7 @@ export default function PrimePanelV2({
       <Modal open={modal === "connection-manage" && Boolean(selectedConnection)} title={selectedConnection?.name || "PasarGuard"} onClose={() => setModal(null)}>
         {selectedConnection && <div className="v2ActionGrid">
           <button onClick={() => run(() => authApi(`/api/v1/connections/${selectedConnection.id}/test`, { method: "POST" }), "اتصال سالم است")}>تست اتصال</button>
-          <button onClick={() => run(() => authApi(`/api/v1/connections/${selectedConnection.id}/sync-groups`, { method: "POST" }), "Groupها Sync شدند")}>همگام‌سازی گروه‌ها</button>
+          <button onClick={() => run(() => authApi(`/api/v1/connections/${selectedConnection.id}/sync-groups`, { method: "POST" }), "گروه‌ها همگام‌سازی شدند")}>همگام‌سازی گروه‌ها</button>
           <button onClick={() => openConnectionEdit(selectedConnection)}>ویرایش اتصال</button>
           <button className="v2Danger" onClick={() => openConfirmAction({
             title: "غیرفعال‌کردن اتصال",
