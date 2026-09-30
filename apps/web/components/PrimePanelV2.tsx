@@ -1497,7 +1497,7 @@ export default function PrimePanelV2({
             <article className="v2Metric"><span>وضعیت</span><strong>{selectedAdmin.status}</strong><small>{selectedAdmin.telegram_id || "Telegram ID ندارد"}</small></article>
           </section>
           <article className="v2Card nested">
-            <div className="v2CardHead"><div><strong>پلن‌های نماینده</strong><span>${adminAssignments.length} تخصیص</span></div></div>
+            <div className="v2CardHead"><div><strong>پلن‌های نماینده</strong><span>{adminAssignments.length} تخصیص</span></div></div>
             <div className="v2Catalog">
               {adminAssignments.map((p) => <div className="v2CatalogRow" key={p.assignment_id}>
                 <div><strong>{p.name}</strong><span>{money(p.retail_price_per_gib_toman)} / GB</span></div>
