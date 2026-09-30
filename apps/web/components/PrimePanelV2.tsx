@@ -1519,16 +1519,18 @@ export default function PrimePanelV2({
       </header>
 
       {drawer && (
-        <div className="v2DrawerBackdrop" onMouseDown={() => setDrawer(false)}>
-          <aside className="v2Drawer" onMouseDown={(e) => e.stopPropagation()}>
-            <div className="v2DrawerHead">
-              <div>
-                <strong>{user.display_name || user.username}</strong>
+        <div className="v2DrawerBackdrop primeDrawerBackdrop" onMouseDown={() => setDrawer(false)}>
+          <aside className="v2Drawer primeDrawer" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="v2DrawerHead primeDrawerHead">
+              <button className="primeDrawerClose" onClick={() => setDrawer(false)} aria-label="بستن منو">
+                <X size={31} />
+              </button>
+              <div className="primeDrawerIdentity">
+                <strong>PRIMEVPN {user.role === "owner" ? "Owner" : "Admin"}</strong>
                 <span>{user.role}</span>
               </div>
-              <button onClick={() => setDrawer(false)}><X size={19} /></button>
             </div>
-            <nav>
+            <nav className="primeDrawerNav">
               {visibleNav.map((item) => {
                 const Icon = item.icon;
                 return (
@@ -1537,14 +1539,17 @@ export default function PrimePanelV2({
                     className={section === item.key ? "active" : ""}
                     onClick={() => go(item.key)}
                   >
-                    <Icon size={19} />
-                    <span>{item.label}</span>
+                    <span className="primeDrawerIcon"><Icon size={25} /></span>
+                    <span className="primeDrawerLabel">{item.label}</span>
                     {item.key === "dashboard" && unread > 0 && <i>{unread}</i>}
                   </button>
                 );
               })}
             </nav>
-            <button className="v2Logout" onClick={signOut}><LogOut size={18} /> خروج</button>
+            <button className="v2Logout primeDrawerLogout" onClick={signOut}>
+              <LogOut size={26} />
+              <span>خروج</span>
+            </button>
           </aside>
         </div>
       )}
