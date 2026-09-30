@@ -4107,3 +4107,271 @@ body:has(.primeLoginPage){padding-bottom:0!important;background:#031329!importan
     padding:10px!important;
   }
 }
+
+
+/* PRIMEVPN modal/select consistency pass */
+.primeSelect{
+  position:relative;
+  min-width:0;
+  width:100%;
+  outline:none;
+}
+.primeSelectTrigger{
+  width:100%;
+  min-height:52px;
+  border:1px solid rgba(54,120,255,.42);
+  border-radius:14px;
+  background:
+    radial-gradient(circle at 88% 28%,rgba(126,55,255,.11),transparent 42%),
+    linear-gradient(145deg,rgba(6,31,68,.96),rgba(5,25,56,.98));
+  color:#edf5ff;
+  padding:0 14px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  cursor:pointer;
+  box-shadow:inset 0 0 14px rgba(255,255,255,.018),0 0 0 rgba(44,217,255,0);
+  transition:border-color .16s ease,box-shadow .16s ease,transform .16s ease;
+}
+.primeSelectTrigger:hover,
+.primeSelect.open .primeSelectTrigger{
+  border-color:rgba(46,220,255,.78);
+  box-shadow:0 0 0 3px rgba(46,220,255,.055),0 0 18px rgba(53,124,255,.12);
+}
+.primeSelectTrigger span{
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  text-align:right;
+}
+.primeSelectTrigger .placeholder{color:#768da8}
+.primeSelectTrigger svg{
+  flex:0 0 auto;
+  transform:rotate(-90deg);
+  color:#8fb5ff;
+  transition:transform .16s ease;
+}
+.primeSelect.open .primeSelectTrigger svg{transform:rotate(90deg)}
+.primeSelect.disabled{opacity:.55}
+.primeSelect.disabled .primeSelectTrigger{cursor:not-allowed}
+
+.primeSelectMenu{
+  position:absolute;
+  z-index:320;
+  top:calc(100% + 7px);
+  right:0;
+  left:0;
+  max-height:min(280px,42vh);
+  overflow:auto;
+  padding:7px;
+  border:1px solid rgba(69,114,255,.46);
+  border-radius:15px;
+  background:
+    radial-gradient(circle at 78% 0%,rgba(110,41,255,.16),transparent 38%),
+    linear-gradient(160deg,rgba(8,31,69,.995),rgba(5,21,48,.995));
+  box-shadow:0 20px 50px rgba(0,0,0,.48),0 0 25px rgba(50,101,255,.12);
+  backdrop-filter:blur(18px);
+}
+.primeSelectMenu button{
+  width:100%;
+  min-height:44px;
+  border:1px solid transparent;
+  border-radius:11px;
+  background:transparent!important;
+  color:#c9d8ea!important;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:8px 11px!important;
+  text-align:right;
+  cursor:pointer;
+}
+.primeSelectMenu button:hover,
+.primeSelectMenu button.selected{
+  border-color:rgba(68,201,255,.22);
+  background:linear-gradient(120deg,rgba(33,163,255,.10),rgba(116,48,255,.10))!important;
+  color:#fff!important;
+}
+.primeSelectMenu button.selected svg{color:#64e6ff}
+.primeSelectEmpty{
+  padding:13px;
+  color:#738aa7;
+  font-size:11px;
+  text-align:center;
+}
+.primeFieldHint{
+  display:block;
+  margin-top:6px;
+  color:#7f94ad;
+  font-size:10px;
+  line-height:1.7;
+}
+.primeFieldHint.warn{color:#ffbf78}
+
+/* Bring all management dialogs to the same PRIMEVPN neon visual system. */
+.v2Modal{
+  background:
+    radial-gradient(circle at 82% -4%,rgba(28,197,255,.10),transparent 28%),
+    radial-gradient(circle at 12% 100%,rgba(113,42,255,.12),transparent 35%),
+    linear-gradient(160deg,rgba(8,29,61,.985),rgba(5,20,43,.99))!important;
+  border:1px solid rgba(54,100,255,.42)!important;
+  box-shadow:
+    0 28px 80px rgba(0,0,0,.52),
+    0 0 24px rgba(36,203,255,.09),
+    0 0 36px rgba(127,45,255,.08)!important;
+}
+.v2Modal>header{
+  min-height:64px;
+  padding:13px 16px!important;
+  background:linear-gradient(180deg,rgba(20,61,114,.18),rgba(7,28,57,.06));
+  border-bottom:1px solid rgba(80,126,255,.18)!important;
+}
+.v2Modal>header>strong{
+  font-size:16px!important;
+  color:#f4f7ff!important;
+}
+.v2Modal>header .v2IconButton{
+  width:44px;
+  height:44px;
+  display:grid;
+  place-items:center;
+  border:1px solid rgba(87,123,255,.28);
+  border-radius:13px;
+  background:linear-gradient(145deg,rgba(17,54,101,.8),rgba(12,34,68,.8));
+  color:#dcecff;
+}
+.v2ModalBody .v2Stack{gap:12px}
+.v2ModalBody .v2Info,
+.v2ModalBody .v2AssignBox,
+.v2ModalBody .v2Metrics.compact,
+.v2ModalBody .v2QrInline{
+  border:1px solid rgba(66,104,255,.22)!important;
+  background:
+    radial-gradient(circle at 88% 14%,rgba(41,194,255,.06),transparent 35%),
+    linear-gradient(145deg,rgba(10,37,74,.55),rgba(7,26,55,.58))!important;
+  border-radius:17px!important;
+}
+.v2ModalBody .v2Info{padding:13px 14px}
+.v2ModalBody .v2Info p{font-size:11px}
+.v2ModalBody .v2Info b{font-size:12px;color:#f4f7ff}
+.v2ModalBody .v2AssignBox{
+  padding:14px!important;
+  gap:10px!important;
+}
+.v2ModalBody .v2AssignBox>strong{
+  color:#eff5ff;
+  font-size:13px!important;
+}
+.v2ModalBody .v2AssignBox input{
+  min-height:52px;
+  border:1px solid rgba(55,119,255,.42)!important;
+  border-radius:14px!important;
+  background:linear-gradient(145deg,rgba(6,31,68,.96),rgba(5,25,56,.98))!important;
+  color:#f2f6ff!important;
+  padding:0 14px!important;
+}
+.v2ModalBody>.v2Stack>button:not(.v2Danger),
+.v2ModalBody .v2ActionGrid button:not(.danger):not(.v2Danger){
+  min-height:50px;
+  border:1px solid rgba(69,119,255,.25)!important;
+  border-radius:13px!important;
+  background:
+    radial-gradient(circle at 80% 20%,rgba(44,211,255,.08),transparent 36%),
+    linear-gradient(145deg,rgba(14,47,91,.72),rgba(9,31,65,.78))!important;
+  color:#e9f3ff!important;
+  box-shadow:inset 0 0 12px rgba(255,255,255,.015);
+}
+.v2ModalBody>.v2Stack>button:not(.v2Danger):hover,
+.v2ModalBody .v2ActionGrid button:not(.danger):not(.v2Danger):hover{
+  border-color:rgba(44,211,255,.48)!important;
+}
+.v2ModalBody>.v2Stack>.v2Danger,
+.v2ModalBody .v2ActionGrid .danger,
+.v2ModalBody .v2ActionGrid .v2Danger{
+  min-height:50px;
+  border-radius:13px!important;
+  color:#ff9db6!important;
+  border:1px solid rgba(255,89,127,.28)!important;
+  background:linear-gradient(145deg,rgba(89,22,50,.34),rgba(52,14,33,.34))!important;
+}
+.v2ModalBody .v2Primary{
+  min-height:54px;
+  border-radius:14px!important;
+  background:
+    radial-gradient(circle at 15% 20%,rgba(255,235,83,.48),transparent 33%),
+    linear-gradient(105deg,#ffc948 0%,#ff9842 48%,#ff6967 100%)!important;
+  color:#171108!important;
+  border:1px solid rgba(255,202,81,.56)!important;
+  box-shadow:0 0 18px rgba(255,148,54,.18)!important;
+}
+.v2ModalBody .v2Primary:disabled{
+  opacity:.45;
+  cursor:not-allowed;
+  filter:saturate(.45);
+}
+
+/* Custom selects used in list filters should look native to the PRIMEVPN panel. */
+.primeAdminFilters label,
+.primeClientFilters label,
+.primeCommerceFilters label{
+  position:relative;
+  overflow:visible!important;
+}
+.primeAdminFilters .primeSelect,
+.primeClientFilters .primeSelect,
+.primeCommerceFilters .primeSelect{
+  min-width:140px;
+}
+.primeAdminFilters .primeSelectTrigger,
+.primeClientFilters .primeSelectTrigger,
+.primeCommerceFilters .primeSelectTrigger{
+  min-height:48px;
+  font-size:11px;
+}
+
+/* Avoid legacy native-chevron icons next to the new picker. */
+.primeAdminFilters label>.primeSelect+svg,
+.primeClientFilters label>.primeSelect+svg,
+.primeCommerceFilters label>.primeSelect+svg{
+  display:none;
+}
+
+@media(max-width:760px){
+  .primeSelectTrigger{
+    min-height:50px;
+    border-radius:13px;
+    font-size:12px;
+  }
+  .primeSelectMenu{
+    position:fixed;
+    z-index:500;
+    top:auto;
+    right:10px;
+    left:10px;
+    bottom:max(10px,env(safe-area-inset-bottom));
+    max-height:46dvh;
+    border-radius:19px;
+    padding:9px;
+    box-shadow:0 28px 80px rgba(0,0,0,.65),0 0 30px rgba(85,55,255,.14);
+  }
+  .primeSelectMenu button{
+    min-height:50px;
+    font-size:12px;
+    padding:9px 12px!important;
+  }
+  .v2ModalBody .v2Info{padding:12px}
+  .v2ModalBody .v2Info p{font-size:10.5px}
+  .v2ModalBody>.v2Stack>button,
+  .v2ModalBody .v2ActionGrid button{
+    min-height:50px;
+    font-size:11px!important;
+  }
+  .primeAdminFilters .primeSelect,
+  .primeClientFilters .primeSelect,
+  .primeCommerceFilters .primeSelect{
+    min-width:130px;
+  }
+}
