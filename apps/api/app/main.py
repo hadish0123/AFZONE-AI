@@ -2785,6 +2785,7 @@ async def directory_clients(
     status_filter: ClientStatus | None = None,
     admin_id: uuid.UUID | None = None,
     plan_id: uuid.UUID | None = None,
+    sort: str = "newest",
     page: int = 1,
     page_size: int = 25,
     user: User = Depends(current_user),
@@ -2807,27 +2808,39 @@ async def directory_clients(
     stmt = select(Client).where(*filters)
     count_stmt = select(func.count(Client.id)).where(*filters)
     total = int(await db.scalar(count_stmt) or 0)
+    order_by = Client.created_at.asc() if sort == "oldest" else Client.created_at.desc()
     rows = (
         await db.execute(
-            stmt.order_by(Client.created_at.desc())
-            .offset((page - 1) * page_size)
-            .limit(page_size)
-        )
-    ).scalars()
-
-    admin_ids = {row.admin_id for row in rows}
-    # Re-run because scalars iterator was consumed.
-    rows = (
-        await db.execute(
-            stmt.order_by(Client.created_at.desc())
+            stmt.order_by(order_by)
             .offset((page - 1) * page_size)
             .limit(page_size)
         )
     ).scalars().all()
+
+    admin_ids = {row.admin_id for row in rows}
+    connection_ids = {row.connection_id for row in rows}
+    group_ids = {row.group_id for row in rows}
+
     admins_map = {}
     if admin_ids:
         admin_rows = (await db.execute(select(User).where(User.id.in_(admin_ids)))).scalars().all()
         admins_map = {a.id: a.username for a in admin_rows}
+
+    connections_map = {}
+    if connection_ids:
+        connection_rows = (
+            await db.execute(
+                select(PasarGuardConnection).where(PasarGuardConnection.id.in_(connection_ids))
+            )
+        ).scalars().all()
+        connections_map = {item.id: item.name for item in connection_rows}
+
+    groups_map = {}
+    if group_ids:
+        group_rows = (
+            await db.execute(select(PasarGuardGroup).where(PasarGuardGroup.id.in_(group_ids)))
+        ).scalars().all()
+        groups_map = {item.id: item.name for item in group_rows}
 
     return {
         "items": [{
@@ -2843,6 +2856,8 @@ async def directory_clients(
             "subscription_url": item.subscription_url,
             "plan_id": str(item.plan_id) if item.plan_id else None,
             "group_id": str(item.group_id),
+            "group_name": groups_map.get(item.group_id),
+            "connection_name": connections_map.get(item.connection_id),
             "created_at": item.created_at,
         } for item in rows],
         **_page_meta(total, page, page_size),
