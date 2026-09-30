@@ -1144,6 +1144,36 @@ export default function PrimePanelV2({
     });
   }
 
+  function openAdminHardDelete(admin: AdminRow) {
+    openActionDialog({
+      title: "حذف دائمی نماینده",
+      description: `نماینده «${admin.display_name || admin.username}» و تمام اطلاعات وابسته به او برای همیشه حذف می‌شود.`,
+      notice: [
+        "این عملیات برگشت‌ناپذیر است.",
+        "کلاینت‌های نماینده از PasarGuard حذف می‌شوند.",
+        "کیف پول و گردش آن، مشتری‌ها، سفارش‌ها، پرداخت‌ها، ربات‌ها، کارت‌ها، نشست‌ها و داده‌های وابسته پاک می‌شوند.",
+        "پلن‌های پایه و اتصال مرکزی PasarGuard مالک حذف نمی‌شوند.",
+      ].join("\n"),
+      fields: [
+        {
+          key: "confirm_username",
+          label: `برای تأیید، نام کاربری «${admin.username}» را وارد کنید`,
+          type: "text",
+          required: true,
+        },
+      ],
+      submitLabel: "حذف دائمی نماینده و همه اطلاعات",
+      destructive: true,
+      successMessage: "نماینده و تمام اطلاعات وابسته حذف شد",
+      onSubmit: (values) => {
+        if (values.confirm_username.trim() !== admin.username) {
+          throw new Error("نام کاربری واردشده با نماینده انتخاب‌شده مطابقت ندارد.");
+        }
+        return authApi(`/api/v1/admins/${admin.id}/hard`, { method: "DELETE" });
+      },
+    });
+  }
+
   function openClientEdit(client: ClientRow) {
     openActionDialog({
       title: "ویرایش کلاینت",
@@ -2439,6 +2469,9 @@ export default function PrimePanelV2({
                   body: JSON.stringify({ status: "active" }),
                 }), "نماینده فعال شد")
             }>{selectedAdmin.status === "active" ? "غیرفعال‌کردن" : "فعال‌کردن"}</button>
+            <button className="danger" onClick={() => openAdminHardDelete(selectedAdmin)}>
+              حذف دائمی نماینده
+            </button>
           </div>
         </div>}
       </Modal>
