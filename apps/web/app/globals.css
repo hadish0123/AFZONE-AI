@@ -4445,3 +4445,111 @@ body:has(.primeLoginPage){padding-bottom:0!important;background:#031329!importan
   .primeActionNotice{max-height:180px;font-size:9px;padding:11px}
   .primeActionDialog input{min-height:49px!important}
 }
+
+
+/* PRIMEVPN final consistency: automatic plans, bot sync and compact mobile filters */
+.primeAutoPlansCard .v2CardHead span,
+.primeBotSyncCard .v2CardHead span{
+  max-width:560px;
+  line-height:1.8;
+}
+.primeAutoBadge{
+  flex:0 0 auto;
+  padding:7px 10px;
+  border-radius:999px;
+  border:1px solid rgba(53,220,255,.24);
+  background:linear-gradient(145deg,rgba(16,87,132,.34),rgba(38,48,122,.35));
+  color:#73e7ff;
+  font-size:9px;
+  white-space:nowrap;
+}
+.primePlanAutoInfo{
+  display:grid;
+  gap:7px;
+}
+.primeAutoPlanText{
+  margin-top:7px!important;
+  padding-top:10px;
+  border-top:1px solid rgba(73,112,255,.16);
+  color:#7fe4ff!important;
+  line-height:1.9!important;
+}
+.primeBotSyncState{
+  margin:0 14px 14px;
+  min-height:86px;
+  display:flex;
+  align-items:center;
+  gap:13px;
+  padding:14px;
+  border:1px solid rgba(45,207,255,.22);
+  border-radius:15px;
+  background:
+    radial-gradient(circle at 88% 14%,rgba(47,215,255,.08),transparent 36%),
+    linear-gradient(145deg,rgba(7,34,72,.68),rgba(7,27,59,.78));
+}
+.primeBotSyncState>svg{
+  flex:0 0 auto;
+  color:#6ee7ff;
+  filter:drop-shadow(0 0 8px rgba(54,219,255,.23));
+}
+.primeBotSyncState strong{
+  display:block;
+  color:#eef8ff;
+  font-size:12px;
+}
+.primeBotSyncState span{
+  display:block;
+  margin-top:5px;
+  color:#839ab8;
+  font-size:9px;
+  line-height:1.7;
+}
+
+/* Custom select lives inside the filter card; never let minimum widths overlap on phones. */
+.primeAdminFilters .primeSelect,
+.primeClientFilters .primeSelect,
+.primeCommerceFilters .primeSelect{
+  width:100%;
+  min-width:0!important;
+}
+.primeAdminFilters label,
+.primeClientFilters label,
+.primeCommerceFilters label{
+  min-width:0;
+}
+.primeClientFilters .primeSelectTrigger{
+  min-width:0;
+}
+
+@media(max-width:430px){
+  .primeClientFilters{
+    grid-template-columns:52px minmax(0,1fr)!important;
+    grid-auto-rows:auto;
+    gap:7px!important;
+    direction:ltr;
+  }
+  .primeClientFilterButton{
+    grid-column:1;
+    width:52px!important;
+  }
+  .primeClientFilters>label{
+    grid-column:1 / -1;
+    width:100%;
+    min-height:49px!important;
+  }
+  .primeClientFilters>label:first-of-type{
+    grid-column:2;
+    grid-row:1;
+  }
+  .primeClientFilters .primeSelectTrigger{
+    min-height:49px!important;
+    font-size:10.5px!important;
+    padding-left:10px!important;
+    padding-right:10px!important;
+  }
+  .primeClientFilters .primeSelectTrigger svg{
+    width:15px!important;
+  }
+  .primeAutoBadge{font-size:8px;padding:6px 8px}
+  .primeBotSyncState{margin:0 10px 10px;padding:11px}
+}
