@@ -36,8 +36,11 @@ type AdminRow = {
   id: string;
   username: string;
   display_name?: string | null;
+  telegram_id?: number | null;
   status: string;
   wallet_balance_toman: string;
+  low_balance_threshold_toman?: string;
+  debt_limit_toman?: string;
 };
 
 type PlanRow = {
@@ -230,7 +233,10 @@ export default function PrimePanel({
   const [audits, setAudits] = useState<AuditRow[]>([]);
   const [topupOptions, setTopupOptions] = useState<TopupOptions | null>(null);
 
-  const [adminForm, setAdminForm] = useState({ username: "", password: "", display_name: "", initial_balance_toman: "0" });
+  const [adminForm, setAdminForm] = useState({ username: "", password: "", display_name: "", telegram_id: "", initial_balance_toman: "0" });
+  const [backupFile, setBackupFile] = useState<File | null>(null);
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [accent, setAccent] = useState<"cyan" | "violet" | "emerald" | "orange">("cyan");
   const [connectionForm, setConnectionForm] = useState({ name: "", base_url: "", api_token: "" });
   const [planForm, setPlanForm] = useState({ name: "", group_id: "", base_price_per_gib_toman: "", min_quota_gib: "1", max_quota_gib: "", max_duration_days: "365", default_hwid_limit: "1" });
   const [clientForm, setClientForm] = useState({ username: "", admin_id: "", plan_id: "", quota_gib: "50", duration_days: "30", hwid_limit: "1" });
@@ -306,7 +312,22 @@ export default function PrimePanel({
     }
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    const savedTheme = (localStorage.getItem("primevpn_theme") as "dark" | "light" | null) || "dark";
+    const savedAccent = (localStorage.getItem("primevpn_accent") as "cyan" | "violet" | "emerald" | "orange" | null) || "cyan";
+    setTheme(savedTheme);
+    setAccent(savedAccent);
+    document.documentElement.dataset.theme = savedTheme;
+    document.documentElement.dataset.accent = savedAccent;
+    load();
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.dataset.accent = accent;
+    localStorage.setItem("primevpn_theme", theme);
+    localStorage.setItem("primevpn_accent", accent);
+  }, [theme, accent]);
 
   async function run(fn: () => Promise<unknown>, success = "انجام شد") {
     setBusy(true);
@@ -342,10 +363,11 @@ export default function PrimePanel({
       method: "POST",
       body: JSON.stringify({
         ...adminForm,
+        telegram_id: adminForm.telegram_id ? Number(adminForm.telegram_id) : null,
         initial_balance_toman: Number(adminForm.initial_balance_toman || 0),
       }),
     }), "نماینده ساخته شد");
-    setAdminForm({ username: "", password: "", display_name: "", initial_balance_toman: "0" });
+    setAdminForm({ username: "", password: "", display_name: "", telegram_id: "", initial_balance_toman: "0" });
   }
 
   async function createConnection(e: FormEvent) {
@@ -433,6 +455,126 @@ export default function PrimePanel({
     }
   }
 
+  async function editAdmin(a: AdminRow) {
+    const displayName = window.prompt("نام نمایشی:", a.display_name || "") ?? undefined;
+    if (displayName === undefined) return;
+    const telegramId = window.prompt("Telegram ID برای اعلان‌ها (اختیاری):", a.telegram_id ? String(a.telegram_id) : "") ?? undefined;
+    if (telegramId === undefined) return;
+    const threshold = window.prompt("هشدار کمبود موجودی (تومان):", a.low_balance_threshold_toman || "50000") ?? undefined;
+    if (threshold === undefined) return;
+    const debt = window.prompt("سقف بدهی مجاز (تومان):", a.debt_limit_toman || "0") ?? undefined;
+    if (debt === undefined) return;
+    const newPassword = window.prompt("رمز جدید (خالی = بدون تغییر):", "") ?? undefined;
+    if (newPassword === undefined) return;
+    await run(() => authApi(`/api/v1/admins/${a.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        display_name: displayName,
+        telegram_id: telegramId ? Number(telegramId) : null,
+        low_balance_threshold_toman: Number(threshold || 0),
+        debt_limit_toman: Number(debt || 0),
+        password: newPassword || null,
+      }),
+    }), "تنظیمات نماینده ذخیره شد");
+  }
+
+  async function editClient(c: ClientRow) {
+    const quota = window.prompt("حجم جدید GB (خالی = بدون تغییر):", c.quota_bytes ? String(Math.round(c.quota_bytes / 1024 ** 3)) : "") ?? undefined;
+    if (quota === undefined) return;
+    const days = window.prompt("تمدید از امروز چند روز؟ (خالی = بدون تغییر):", "") ?? undefined;
+    if (days === undefined) return;
+    const hwid = window.prompt("تعداد دستگاه/HWID (خالی = بدون تغییر):", c.hwid_limit ? String(c.hwid_limit) : "") ?? undefined;
+    if (hwid === undefined) return;
+    await run(() => authApi(`/api/v1/clients/${c.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        quota_gib: quota ? Number(quota) : null,
+        duration_days_from_now: days ? Number(days) : null,
+        hwid_limit: hwid ? Number(hwid) : null,
+      }),
+    }), "کلاینت ویرایش شد");
+  }
+
+  async function editPlan(p: PlanRow) {
+    const name = window.prompt("نام پلن:", p.name) ?? undefined;
+    if (name === undefined) return;
+    const price = window.prompt("قیمت پایه هر GB:", p.base_price_per_gib_toman || p.cost_per_gib_toman || "") ?? undefined;
+    if (price === undefined) return;
+    const maxQuota = window.prompt("حداکثر حجم GB (خالی = بدون تغییر):", p.max_quota_gib || "") ?? undefined;
+    if (maxQuota === undefined) return;
+    const maxDays = window.prompt("حداکثر مدت روز (خالی = بدون تغییر):", p.max_duration_days ? String(p.max_duration_days) : "") ?? undefined;
+    if (maxDays === undefined) return;
+    await run(() => authApi(`/api/v1/plans/${p.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        name,
+        base_price_per_gib_toman: Number(price),
+        max_quota_gib: maxQuota ? Number(maxQuota) : null,
+        max_duration_days: maxDays ? Number(maxDays) : null,
+      }),
+    }), "پلن ویرایش شد");
+  }
+
+  async function editConnection(row: ConnectionRow) {
+    const name = window.prompt("نام اتصال:", row.name) ?? undefined;
+    if (name === undefined) return;
+    const baseUrl = window.prompt("آدرس پنل:", row.base_url) ?? undefined;
+    if (baseUrl === undefined) return;
+    const token = window.prompt("API Token جدید (خالی = بدون تغییر):", "") ?? undefined;
+    if (token === undefined) return;
+    await run(() => authApi(`/api/v1/connections/${row.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        name,
+        base_url: baseUrl,
+        api_token: token || null,
+        enabled: true,
+      }),
+    }), "اتصال ویرایش و تست شد");
+  }
+
+  async function editBot(row: BotRow) {
+    const name = window.prompt("نام ربات:", row.name) ?? undefined;
+    if (name === undefined) return;
+    const token = window.prompt("Token جدید (خالی = بدون تغییر):", "") ?? undefined;
+    if (token === undefined) return;
+    await run(() => authApi(`/api/v1/bots/${row.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        name,
+        token: token || null,
+        enabled: true,
+        customer_wallet_enabled: row.customer_wallet_enabled,
+        card_to_card_enabled: row.card_to_card_enabled,
+        gateway_enabled: row.gateway_enabled,
+      }),
+    }), "ربات ویرایش شد");
+  }
+
+  async function exportBackup() {
+    try {
+      const blob = await authBlob("/api/v1/backups/export");
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `primevpn-${new Date().toISOString().slice(0, 10)}.pvbackup`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 30_000);
+      setNotice("Backup رمزگذاری‌شده ساخته شد");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Backup ناموفق بود");
+    }
+  }
+
+  async function restoreBackup() {
+    if (!backupFile) return setError("فایل Backup را انتخاب کنید");
+    const ok = window.confirm("Restore به‌صورت Merge انجام می‌شود و داده موجود حذف نمی‌شود. ادامه می‌دهی؟");
+    if (!ok) return;
+    const fd = new FormData();
+    fd.append("backup", backupFile);
+    await run(() => authApi("/api/v1/backups/restore", { method: "POST", body: fd }), "Backup بازیابی شد");
+  }
+
   async function cardWalletTopup(e: FormEvent) {
     e.preventDefault();
     if (!walletReceipt) return setError("فایل رسید را انتخاب کنید");
@@ -512,6 +654,7 @@ export default function PrimePanel({
         <form className="formGrid" onSubmit={createAdmin}>
           <input placeholder="نام کاربری" value={adminForm.username} onChange={(e) => setAdminForm({ ...adminForm, username: e.target.value })} required />
           <input placeholder="نام نمایشی" value={adminForm.display_name} onChange={(e) => setAdminForm({ ...adminForm, display_name: e.target.value })} />
+          <input placeholder="Telegram ID اعلان‌ها (اختیاری)" type="number" value={adminForm.telegram_id} onChange={(e) => setAdminForm({ ...adminForm, telegram_id: e.target.value })} />
           <input placeholder="رمز عبور حداقل ۱۰ کاراکتر" type="password" value={adminForm.password} onChange={(e) => setAdminForm({ ...adminForm, password: e.target.value })} required />
           <input placeholder="موجودی اولیه تومان" type="number" value={adminForm.initial_balance_toman} onChange={(e) => setAdminForm({ ...adminForm, initial_balance_toman: e.target.value })} />
           <button className="primary" disabled={busy}>ساخت نماینده</button>
@@ -526,6 +669,7 @@ export default function PrimePanel({
             <div className="inlineActions">
               <input className="miniInput" placeholder="شارژ" type="number" value={adminCredit[a.id] || ""} onChange={(e) => setAdminCredit({ ...adminCredit, [a.id]: e.target.value })} />
               <button onClick={() => run(() => authApi(`/api/v1/admins/${a.id}/wallet/topup`, { method: "POST", body: JSON.stringify({ amount_toman: Number(adminCredit[a.id] || 0), note: "Owner top-up from PRIMEVPN panel" }) }), "کیف پول شارژ شد")}>شارژ</button>
+              <button onClick={() => editAdmin(a)}>ویرایش</button>
               <button className={a.status === "active" ? "dangerSoft" : "okSoft"} onClick={() => run(() => authApi(`/api/v1/admins/${a.id}`, { method: "PATCH", body: JSON.stringify({ status: a.status === "active" ? "disabled" : "active" }) }), "وضعیت نماینده تغییر کرد")}>{a.status === "active" ? "غیرفعال" : "فعال"}</button>
             </div>
           </div>)}
@@ -556,6 +700,7 @@ export default function PrimePanel({
             <div><strong>{c.username}</strong><span>{c.status} · مصرف {gib(c.lifetime_usage_bytes)} / {c.quota_bytes ? gib(c.quota_bytes) : "∞"}</span></div>
             <div><span>{c.expires_at ? dt(c.expires_at) : "بدون انقضا"} · {c.hwid_limit || "∞"} دستگاه</span></div>
             <div className="inlineActions">
+              <button onClick={() => editClient(c)}>ویرایش</button>
               <button title="کپی لینک" onClick={() => copy(c.subscription_url)}><Copy size={14}/></button>
               <button onClick={() => run(() => authApi(`/api/v1/clients/${c.id}/reset-usage`, { method: "POST" }), "مصرف Reset شد")}>Reset</button>
               <button onClick={() => run(() => authApi(`/api/v1/clients/${c.id}/revoke-subscription`, { method: "POST" }), "Subscription عوض شد")}>Revoke</button>
@@ -592,6 +737,7 @@ export default function PrimePanel({
               <select value={assign[p.id]?.adminId || ""} onChange={(e) => setAssign({ ...assign, [p.id]: { adminId: e.target.value, price: assign[p.id]?.price || p.base_price_per_gib_toman || "" } })}><option value="">نماینده</option>{admins.map((a) => <option key={a.id} value={a.id}>{a.username}</option>)}</select>
               <input className="miniInput" type="number" placeholder="قیمت فروش" value={assign[p.id]?.price || ""} onChange={(e) => setAssign({ ...assign, [p.id]: { adminId: assign[p.id]?.adminId || "", price: e.target.value } })} />
               <button onClick={() => run(() => authApi(`/api/v1/admins/${assign[p.id]?.adminId}/plans/${p.id}`, { method: "PUT", body: JSON.stringify({ retail_price_per_gib_toman: Number(assign[p.id]?.price || 0), bot_visible: true }) }), "پلن به نماینده تخصیص داده شد")}>تخصیص</button>
+              <button onClick={() => editPlan(p)}>ویرایش</button>
               <button className="dangerSoft" onClick={() => run(() => authApi(`/api/v1/plans/${p.id}`, { method: "DELETE" }), "پلن خاموش شد")}>خاموش</button>
             </div> : <div className="inlineActions grow">
               <input className="miniInput" type="number" value={retail[p.id] ?? p.retail_price_per_gib_toman ?? ""} onChange={(e) => setRetail({ ...retail, [p.id]: e.target.value })} />
@@ -683,7 +829,7 @@ export default function PrimePanel({
       <article className="panel">
         <SectionTitle title="ربات‌ها" sub="Telegram Worker به‌صورت خودکار ربات‌های فعال را اجرا می‌کند" />
         <div className="dataTable">
-          {bots.map((b) => <div className="dataRow" key={b.id}><div><strong>{b.name}</strong><span>@{b.username || "—"} · {b.enabled ? "فعال" : "خاموش"}</span></div><div className="inlineActions"><span className="tag">{b.customer_wallet_enabled ? "Wallet" : ""}</span><span className="tag">{b.card_to_card_enabled ? "Card" : ""}</span><span className="tag">{b.gateway_enabled ? "Gateway" : ""}</span>{b.enabled && <button className="dangerSoft" onClick={() => run(() => authApi(`/api/v1/bots/${b.id}`, { method: "DELETE" }), "ربات غیرفعال شد")}>خاموش</button>}</div></div>)}
+          {bots.map((b) => <div className="dataRow" key={b.id}><div><strong>{b.name}</strong><span>@{b.username || "—"} · {b.enabled ? "فعال" : "خاموش"}</span></div><div className="inlineActions"><span className="tag">{b.customer_wallet_enabled ? "Wallet" : ""}</span><span className="tag">{b.card_to_card_enabled ? "Card" : ""}</span><span className="tag">{b.gateway_enabled ? "Gateway" : ""}</span><button onClick={() => editBot(b)}>ویرایش</button>{b.enabled && <button className="dangerSoft" onClick={() => run(() => authApi(`/api/v1/bots/${b.id}`, { method: "DELETE" }), "ربات غیرفعال شد")}>خاموش</button>}</div></div>)}
         </div>
       </article>
     </section>;
@@ -704,7 +850,7 @@ export default function PrimePanel({
       <article className="panel">
         <SectionTitle title="اتصال‌ها" sub="Multi-PasarGuard" />
         <div className="dataTable">
-          {connections.map((c) => <div className="dataRow" key={c.id}><div><strong>{c.name}</strong><span>{c.base_url} · Sync: {dt(c.last_sync_at)}</span>{c.last_error && <small className="negative">{c.last_error}</small>}</div><div className="inlineActions"><button onClick={() => run(() => authApi(`/api/v1/connections/${c.id}/test`, { method: "POST" }), "اتصال سالم است")}>Test</button><button onClick={() => run(() => authApi(`/api/v1/connections/${c.id}/sync-groups`, { method: "POST" }), "Groupها Sync شدند")}>Sync Groups</button>{c.enabled && <button className="dangerSoft" onClick={() => run(() => authApi(`/api/v1/connections/${c.id}`, { method: "DELETE" }), "اتصال غیرفعال شد")}>Disable</button>}</div></div>)}
+          {connections.map((c) => <div className="dataRow" key={c.id}><div><strong>{c.name}</strong><span>{c.base_url} · Sync: {dt(c.last_sync_at)}</span>{c.last_error && <small className="negative">{c.last_error}</small>}</div><div className="inlineActions"><button onClick={() => editConnection(c)}>ویرایش</button><button onClick={() => run(() => authApi(`/api/v1/connections/${c.id}/test`, { method: "POST" }), "اتصال سالم است")}>Test</button><button onClick={() => run(() => authApi(`/api/v1/connections/${c.id}/sync-groups`, { method: "POST" }), "Groupها Sync شدند")}>Sync Groups</button>{c.enabled && <button className="dangerSoft" onClick={() => run(() => authApi(`/api/v1/connections/${c.id}`, { method: "DELETE" }), "اتصال غیرفعال شد")}>Disable</button>}</div></div>)}
         </div>
       </article>
     </section>;
@@ -731,6 +877,21 @@ export default function PrimePanel({
           <button className="primary">ذخیره تنظیمات</button>
         </form>
       </article>
+      <article className="panel">
+        <SectionTitle title="ظاهر پنل" sub="Theme و Accent فقط برای حساب شما در مرورگر ذخیره می‌شود" />
+        <div className="themeControls">
+          <button className={theme === "dark" ? "selectedOption" : ""} onClick={() => setTheme("dark")}>🌙 Dark</button>
+          <button className={theme === "light" ? "selectedOption" : ""} onClick={() => setTheme("light")}>☀️ Light</button>
+          {(["cyan","violet","emerald","orange"] as const).map((x) => <button key={x} className={accent === x ? "selectedOption" : ""} onClick={() => setAccent(x)}>{x}</button>)}
+        </div>
+      </article>
+      {user.role === "owner" && <article className="panel">
+        <SectionTitle title="Backup & Recovery" sub="Backup کامل رمزگذاری‌شده؛ Restore به‌صورت Merge و غیرمخرب" />
+        <div className="dualForms">
+          <div className="subForm"><h3>Export</h3><p className="muted">Secretهای داخلی plaintext نمی‌شوند.</p><button onClick={exportBackup}>دانلود Backup</button></div>
+          <div className="subForm"><h3>Restore</h3><input type="file" accept=".pvbackup" onChange={(e) => setBackupFile(e.target.files?.[0] || null)} /><button onClick={restoreBackup}>Merge Restore</button></div>
+        </div>
+      </article>}
       {user.role === "owner" && <article className="panel">
         <SectionTitle title="امنیت مالک" sub="TOTP دو مرحله‌ای و Recovery Code" />
         <div className="securityBox">
