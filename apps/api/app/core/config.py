@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     owner_password: str = Field(alias="OWNER_PASSWORD")
 
     cors_origins: str = Field(default="", alias="CORS_ORIGINS")
+    public_web_url: str = Field(default="http://localhost:3000", alias="PUBLIC_WEB_URL")
 
     billing_gib_bytes: int = 1024**3
     low_balance_warning_toman: int = 50_000
