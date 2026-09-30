@@ -2,7 +2,7 @@
 
 import { Gauge, ShieldCheck } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
-import PrimePanel from "../components/PrimePanel";
+import PrimePanelV2 from "../components/PrimePanelV2";
 import {
   ApiError,
   authApi,
@@ -87,5 +87,5 @@ export default function Home() {
   }
 
   if (!user) return <LoginScreen onLogin={setUser}/>;
-  return <PrimePanel user={user} onSessionExpired={() => { clearSession(); setUser(null); }}/>;
+  return <PrimePanelV2 user={user} onSessionExpired={() => { clearSession(); setUser(null); }}/>;
 }
