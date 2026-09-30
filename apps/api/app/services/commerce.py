@@ -96,8 +96,6 @@ async def create_order(
             AdminPlan.enabled.is_(True),
         )
     )
-    if not admin_plan:
-        raise PermissionError("plan is not assigned to this admin")
 
     if plan.min_quota_gib is not None and quota_gib < Decimal(plan.min_quota_gib):
         raise ValueError("quota below plan minimum")
@@ -106,7 +104,12 @@ async def create_order(
     if plan.max_duration_days is not None and duration_days and duration_days > plan.max_duration_days:
         raise ValueError("duration above plan maximum")
 
-    retail = money(Decimal(admin_plan.retail_price_per_gib_toman) * Decimal(quota_gib))
+    retail_per_gib = Decimal(
+        admin_plan.retail_price_per_gib_toman
+        if admin_plan
+        else plan.base_price_per_gib_toman
+    )
+    retail = money(retail_per_gib * Decimal(quota_gib))
     order = Order(
         admin_id=admin_id,
         customer_id=customer_id,
