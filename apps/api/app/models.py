@@ -470,3 +470,21 @@ class BankCard(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class TelegramBotPlan(Base):
+    __tablename__ = "telegram_bot_plans"
+    __table_args__ = (
+        UniqueConstraint("bot_id", "plan_id", name="uq_telegram_bot_plan"),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    bot_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("telegram_bots.id", ondelete="CASCADE"), index=True
+    )
+    plan_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("plans.id", ondelete="CASCADE"), index=True
+    )
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
