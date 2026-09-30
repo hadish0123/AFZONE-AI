@@ -385,6 +385,9 @@ export default function PrimePanelV2({
 
   const [adminSearch, setAdminSearch] = useState("");
   const [adminStatus, setAdminStatus] = useState("");
+  const [adminPickerSearch, setAdminPickerSearch] = useState("");
+  const [adminOptions, setAdminOptions] = useState<AdminRow[]>([]);
+  const [assignmentPrice, setAssignmentPrice] = useState("");
   const [clientSearch, setClientSearch] = useState("");
   const [clientStatus, setClientStatus] = useState("");
   const [clientAdminFilter, setClientAdminFilter] = useState("");
@@ -663,11 +666,29 @@ export default function PrimePanelV2({
     setSuccess("");
   }
 
-  function contextualCreate() {
+  async function searchAdminOptions(query = adminPickerSearch) {
+    if (user.role !== "owner") return;
+    const data = await safe(() => authApi<PageResult<AdminRow>>(
+      `/api/v1/directory/admins?${qs({ q: query, status_filter: "active", page: 1, page_size: 50 })}`
+    ));
+    if (data) setAdminOptions(data.items);
+  }
+
+  async function contextualCreate() {
     if (section === "admins") setModal("admin-create");
-    else if (section === "clients") setModal("client-create");
-    else if (section === "plans" && user.role === "owner") setModal("plan-create");
-    else if (section === "bots") setModal("bot-create");
+    else if (section === "clients") {
+      if (!plans.length) await loadPlans();
+      if (user.role === "owner") await searchAdminOptions("");
+      setModal("client-create");
+    }
+    else if (section === "plans" && user.role === "owner") {
+      if (!groups.length) await loadPlans();
+      setModal("plan-create");
+    }
+    else if (section === "bots") {
+      if (user.role === "owner") await searchAdminOptions("");
+      setModal("bot-create");
+    }
     else if (section === "pasarguard" && user.role === "owner") setModal("connection-create");
   }
 
@@ -983,7 +1004,12 @@ export default function PrimePanelV2({
               <button
                 className="v2Plan"
                 key={p.id}
-                onClick={() => { setSelectedId(p.id); setModal("plan-manage"); }}
+                onClick={async () => {
+                  setSelectedId(p.id);
+                  if (user.role === "owner") await searchAdminOptions("");
+                  setAssignmentPrice(p.base_price_per_gib_toman || "");
+                  setModal("plan-manage");
+                }}
               >
                 <div><strong>{p.name}</strong><span className={p.enabled === false ? "v2Badge off" : "v2Badge ok"}>{p.enabled === false ? "خاموش" : "فعال"}</span></div>
                 <b>{money(p.retail_price_per_gib_toman || p.base_price_per_gib_toman || p.cost_per_gib_toman)} / GB</b>
@@ -1466,7 +1492,17 @@ export default function PrimePanelV2({
       <Modal open={modal === "client-create"} title="ساخت کلاینت" onClose={() => setModal(null)}>
         <form className="v2Form" onSubmit={createClient}>
           <label>Username<input value={clientForm.username} onChange={(e) => setClientForm({ ...clientForm, username: e.target.value })} required /></label>
-          {user.role === "owner" && <label>Admin ID<input placeholder="UUID نماینده" value={clientForm.admin_id} onChange={(e) => setClientForm({ ...clientForm, admin_id: e.target.value })} required /></label>}
+          {user.role === "owner" && <div className="v2Picker">
+            <label>جستجوی نماینده
+              <div className="v2PickerSearch"><input value={adminPickerSearch} onChange={(e) => setAdminPickerSearch(e.target.value)} placeholder="نام کاربری یا نام نماینده" /><button type="button" onClick={() => searchAdminOptions()}>جستجو</button></div>
+            </label>
+            <label>نماینده
+              <select value={clientForm.admin_id} onChange={(e) => setClientForm({ ...clientForm, admin_id: e.target.value })} required>
+                <option value="">انتخاب نماینده</option>
+                {adminOptions.map((a) => <option key={a.id} value={a.id}>{a.display_name || a.username} (@{a.username})</option>)}
+              </select>
+            </label>
+          </div>}
           <label>پلن<select value={clientForm.plan_id} onChange={(e) => setClientForm({ ...clientForm, plan_id: e.target.value })} required><option value="">انتخاب پلن</option>{plans.filter((p) => p.enabled !== false).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
           <label>حجم GB<input type="number" step="0.1" value={clientForm.quota_gib} onChange={(e) => setClientForm({ ...clientForm, quota_gib: e.target.value })} required /></label>
           <label>مدت روز<input type="number" value={clientForm.duration_days} onChange={(e) => setClientForm({ ...clientForm, duration_days: e.target.value })} /></label>
@@ -1530,6 +1566,16 @@ export default function PrimePanelV2({
             <p>قیمت فروش: <b>{money(selectedPlan.retail_price_per_gib_toman || selectedPlan.base_price_per_gib_toman)} / GB</b></p>
           </div>
           {user.role === "owner" ? <>
+            <div className="v2AssignBox">
+              <strong>تخصیص این پلن به نماینده</strong>
+              <div className="v2PickerSearch"><input value={adminPickerSearch} onChange={(e) => setAdminPickerSearch(e.target.value)} placeholder="جستجوی نماینده" /><button onClick={() => searchAdminOptions()}>جستجو</button></div>
+              <select value={clientForm.admin_id} onChange={(e) => setClientForm({ ...clientForm, admin_id: e.target.value })}>
+                <option value="">انتخاب نماینده</option>
+                {adminOptions.map((a) => <option key={a.id} value={a.id}>{a.display_name || a.username} (@{a.username})</option>)}
+              </select>
+              <input type="number" placeholder="قیمت فروش هر GB" value={assignmentPrice} onChange={(e) => setAssignmentPrice(e.target.value)} />
+              <button className="v2Primary" onClick={() => run(() => authApi(`/api/v1/admins/${clientForm.admin_id}/plans/${selectedPlan.id}`, { method: "PUT", body: JSON.stringify({ retail_price_per_gib_toman: Number(assignmentPrice), bot_visible: true }) }), "پلن به نماینده تخصیص داده شد")}>تخصیص پلن</button>
+            </div>
             <button onClick={() => {
               const name = window.prompt("نام پلن:", selectedPlan.name);
               const price = window.prompt("قیمت پایه هر GB:", selectedPlan.base_price_per_gib_toman || "");
@@ -1573,7 +1619,17 @@ export default function PrimePanelV2({
         <form className="v2Form" onSubmit={createBot}>
           <label>نام ربات<input value={botForm.name} onChange={(e) => setBotForm({ ...botForm, name: e.target.value })} required /></label>
           <label>Bot Token<input type="password" value={botForm.token} onChange={(e) => setBotForm({ ...botForm, token: e.target.value })} required /></label>
-          {user.role === "owner" && <label>Admin ID<input value={botForm.admin_id} onChange={(e) => setBotForm({ ...botForm, admin_id: e.target.value })} required /></label>}
+          {user.role === "owner" && <div className="v2Picker">
+            <label>جستجوی نماینده
+              <div className="v2PickerSearch"><input value={adminPickerSearch} onChange={(e) => setAdminPickerSearch(e.target.value)} placeholder="نام کاربری نماینده" /><button type="button" onClick={() => searchAdminOptions()}>جستجو</button></div>
+            </label>
+            <label>نماینده
+              <select value={botForm.admin_id} onChange={(e) => setBotForm({ ...botForm, admin_id: e.target.value })} required>
+                <option value="">انتخاب نماینده</option>
+                {adminOptions.map((a) => <option key={a.id} value={a.id}>{a.display_name || a.username} (@{a.username})</option>)}
+              </select>
+            </label>
+          </div>}
           <label className="v2Check"><input type="checkbox" checked={botForm.customer_wallet_enabled} onChange={(e) => setBotForm({ ...botForm, customer_wallet_enabled: e.target.checked })} /> کیف پول مشتری</label>
           <label className="v2Check"><input type="checkbox" checked={botForm.card_to_card_enabled} onChange={(e) => setBotForm({ ...botForm, card_to_card_enabled: e.target.checked })} /> کارت‌به‌کارت</label>
           <label className="v2Check"><input type="checkbox" checked={botForm.gateway_enabled} onChange={(e) => setBotForm({ ...botForm, gateway_enabled: e.target.checked })} /> زرین‌پال</label>
