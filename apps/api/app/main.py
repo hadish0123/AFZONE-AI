@@ -1479,7 +1479,7 @@ async def review_payment(
 
 from aiogram import Bot as AiogramBot
 
-from app.models import TelegramBot, TelegramBotPlan
+from app.models import TelegramBot
 
 
 class TelegramBotCreateIn(BaseModel):
