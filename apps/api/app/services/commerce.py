@@ -104,10 +104,11 @@ async def create_order(
     if plan.max_duration_days is not None and duration_days and duration_days > plan.max_duration_days:
         raise ValueError("duration above plan maximum")
 
-    retail_per_gib = Decimal(
-        admin_plan.retail_price_per_gib_toman
+    retail_per_gib = max(
+        Decimal(plan.base_price_per_gib_toman),
+        Decimal(admin_plan.retail_price_per_gib_toman)
         if admin_plan
-        else plan.base_price_per_gib_toman
+        else Decimal(plan.base_price_per_gib_toman),
     )
     retail = money(retail_per_gib * Decimal(quota_gib))
     order = Order(
