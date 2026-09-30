@@ -116,6 +116,22 @@ def purpose_text(value: str | None) -> str:
     }.get(value or "", "پرداخت")
 
 
+def user_error_text(exc: Exception) -> str:
+    message = str(exc).strip()
+    known = {
+        "order ownership mismatch": "اطلاعات سفارش با این نماینده همخوانی ندارد.",
+        "customer missing": "اطلاعات مشتری پیدا نشد.",
+        "customer ownership mismatch": "اطلاعات مشتری با این نماینده همخوانی ندارد.",
+        "plan not found or disabled": "پلن انتخاب‌شده در دسترس نیست.",
+        "quota must be positive": "حجم سرویس باید بیشتر از صفر باشد.",
+    }
+    if message in known:
+        return known[message]
+    if any("\u0600" <= ch <= "\u06ff" for ch in message):
+        return message[:220]
+    return "عملیات انجام نشد. دوباره تلاش کنید."
+
+
 async def load_bot(bot_id: uuid.UUID) -> TelegramBot | None:
     async with SessionLocal() as db:
         return await db.scalar(select(TelegramBot).where(TelegramBot.id == bot_id))
@@ -577,7 +593,7 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
                         idempotency_key=f"payment:{payment.id}",
                         reference_type="payment",
                         reference_id=str(payment.id),
-                        description="Approved from Telegram manager panel",
+                        description="تأیید پرداخت از پنل مدیریت ربات",
                     )
                     payment.status = PaymentStatus.PAID
                     payment.provider_reference = str(txn.id)
@@ -599,7 +615,7 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
                 await callback.answer()
             except Exception as exc:
                 await db.rollback()
-                await callback.answer(str(exc)[:180], show_alert=True)
+                await callback.answer(user_error_text(exc), show_alert=True)
 
     @router.message(CommandStart())
     @router.message(Command("menu"))
@@ -829,7 +845,7 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
                 reply_markup=kb.as_markup(),
             )
         except Exception as exc:
-            await message.answer(str(exc)[:300])
+            await message.answer(user_error_text(exc))
 
     @router.callback_query(F.data.startswith("check:"))
     async def check_payment(callback: CallbackQuery):
@@ -989,7 +1005,7 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
                 await callback.answer()
             except Exception as exc:
                 await db.rollback()
-                await callback.answer(str(exc)[:180], show_alert=True)
+                await callback.answer(user_error_text(exc), show_alert=True)
 
     @router.message(SaleFlow.wallet_topup_receipt)
     async def wallet_receipt(message: Message, state: FSMContext, bot: Bot):
@@ -1035,7 +1051,7 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
                 reply_markup=kb.as_markup(),
             )
         except Exception as exc:
-            await message.answer(str(exc)[:300])
+            await message.answer(user_error_text(exc))
 
     dp.include_router(router)
     return dp
