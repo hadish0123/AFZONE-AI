@@ -298,7 +298,12 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
             return
         kb = InlineKeyboardBuilder()
         for plan, admin_plan in rows:
-            retail = admin_plan.retail_price_per_gib_toman if admin_plan else plan.base_price_per_gib_toman
+            retail = max(
+                Decimal(plan.base_price_per_gib_toman),
+                Decimal(admin_plan.retail_price_per_gib_toman)
+                if admin_plan
+                else Decimal(plan.base_price_per_gib_toman),
+            )
             kb.button(
                 text=f"{plan.name} · {money_text(retail)}/GB",
                 callback_data=f"plan:{plan.id}",
@@ -383,7 +388,12 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
             await target.answer("پلن در دسترس نیست.")
             return
         plan, admin_plan = row
-        retail = Decimal(admin_plan.retail_price_per_gib_toman if admin_plan else plan.base_price_per_gib_toman)
+        retail = max(
+            Decimal(plan.base_price_per_gib_toman),
+            Decimal(admin_plan.retail_price_per_gib_toman)
+            if admin_plan
+            else Decimal(plan.base_price_per_gib_toman),
+        )
         amount = retail * quota
 
         text = brand_title(
