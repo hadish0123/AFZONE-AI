@@ -267,6 +267,7 @@ type ActionField = {
   type?: "text" | "number" | "password" | "url";
   placeholder?: string;
   required?: boolean;
+  integer?: boolean;
 };
 
 type ActionDialogState = {
@@ -304,6 +305,27 @@ const normalizeNumberText = (value: string | number | null | undefined) =>
 const exactNumber = (value: string | number | null | undefined) => {
   const parsed = Number(normalizeNumberText(value));
   return Number.isFinite(parsed) ? parsed : NaN;
+};
+
+const wholeTomanText = (value: string | number | null | undefined) => {
+  const parsed = exactNumber(value);
+  return Number.isFinite(parsed) ? String(Math.round(parsed)) : "";
+};
+
+const requireWholeToman = (
+  value: string | number | null | undefined,
+  label = "مبلغ",
+  allowZero = false,
+) => {
+  const parsed = exactNumber(value);
+  if (
+    !Number.isFinite(parsed) ||
+    !Number.isInteger(parsed) ||
+    (allowZero ? parsed < 0 : parsed <= 0)
+  ) {
+    throw new Error(`${label} باید بدون اعشار و به تومان وارد شود.`);
+  }
+  return parsed;
 };
 
 const money = (value?: string | number | null) => {
@@ -848,6 +870,13 @@ export default function PrimePanelV2({
 
   async function createAdmin(e: FormEvent) {
     e.preventDefault();
+    let initialBalance = 0;
+    try {
+      initialBalance = requireWholeToman(adminForm.initial_balance_toman || "0", "موجودی اولیه", true);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "موجودی اولیه نامعتبر است");
+      return;
+    }
     await run(() => authApi("/api/v1/admins", {
       method: "POST",
       body: JSON.stringify({
@@ -855,7 +884,7 @@ export default function PrimePanelV2({
         display_name: adminForm.display_name || null,
         password: adminForm.password,
         telegram_id: adminForm.telegram_id ? Number(adminForm.telegram_id) : null,
-        initial_balance_toman: Number(adminForm.initial_balance_toman || 0),
+        initial_balance_toman: initialBalance,
       }),
     }), "نماینده ساخته شد");
     setAdminForm({ username: "", display_name: "", password: "", telegram_id: "", initial_balance_toman: "0" });
@@ -893,8 +922,8 @@ export default function PrimePanelV2({
   async function createPlan(e: FormEvent) {
     e.preventDefault();
     const price = exactNumber(planForm.base_price_per_gib_toman);
-    if (!Number.isFinite(price) || price <= 0) {
-      setError("قیمت هر GB را به تومان وارد کنید؛ مثال: 400 یعنی دقیقاً 400 تومان.");
+    if (!Number.isFinite(price) || !Number.isInteger(price) || price <= 0) {
+      setError("قیمت هر GB باید بدون اعشار و به تومان باشد؛ مثال: 400.");
       return;
     }
     await run(() => authApi("/api/v1/plans", {
@@ -1065,14 +1094,17 @@ export default function PrimePanelV2({
       title: "شارژ کیف پول نماینده",
       description: `افزایش موجودی کیف پول ${admin.display_name || admin.username}`,
       fields: [
-        { key: "amount", label: "مبلغ شارژ (تومان)", type: "number", placeholder: "مثلاً ۵۰۰۰۰", required: true },
+        { key: "amount", label: "مبلغ شارژ (تومان)", type: "number", placeholder: "مثلاً ۵۰۰۰۰", required: true, integer: true },
       ],
       submitLabel: "شارژ کیف پول",
       successMessage: "کیف پول شارژ شد",
-      onSubmit: (values) => authApi(`/api/v1/admins/${admin.id}/wallet/topup`, {
-        method: "POST",
-        body: JSON.stringify({ amount_toman: Number(values.amount), note: "Owner top-up" }),
-      }),
+      onSubmit: (values) => {
+        const amount = requireWholeToman(values.amount, "مبلغ شارژ");
+        return authApi(`/api/v1/admins/${admin.id}/wallet/topup`, {
+          method: "POST",
+          body: JSON.stringify({ amount_toman: amount, note: "Owner top-up" }),
+        });
+      },
     });
   }
 
@@ -1083,27 +1115,31 @@ export default function PrimePanelV2({
       fields: [
         { key: "display_name", label: "نام نمایشی", type: "text" },
         { key: "telegram_id", label: "شناسه تلگرام", type: "number" },
-        { key: "threshold", label: "حد هشدار کیف پول", type: "number" },
-        { key: "debt", label: "سقف بدهی", type: "number" },
+        { key: "threshold", label: "حد هشدار کیف پول", type: "number", integer: true },
+        { key: "debt", label: "سقف بدهی", type: "number", integer: true },
         { key: "password", label: "رمز جدید", type: "password", placeholder: "خالی = بدون تغییر" },
       ],
       submitLabel: "ذخیره تغییرات",
       successMessage: "نماینده ویرایش شد",
-      onSubmit: (values) => authApi(`/api/v1/admins/${admin.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          display_name: values.display_name || null,
-          telegram_id: values.telegram_id ? Number(values.telegram_id) : null,
-          low_balance_threshold_toman: Number(values.threshold || 0),
-          debt_limit_toman: Number(values.debt || 0),
-          password: values.password || null,
-        }),
-      }),
+      onSubmit: (values) => {
+        const threshold = requireWholeToman(values.threshold || "0", "حد هشدار کیف پول", true);
+        const debt = requireWholeToman(values.debt || "0", "سقف بدهی", true);
+        return authApi(`/api/v1/admins/${admin.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            display_name: values.display_name || null,
+            telegram_id: values.telegram_id ? Number(values.telegram_id) : null,
+            low_balance_threshold_toman: threshold,
+            debt_limit_toman: debt,
+            password: values.password || null,
+          }),
+        });
+      },
     }, {
       display_name: admin.display_name || "",
       telegram_id: admin.telegram_id ? String(admin.telegram_id) : "",
-      threshold: admin.low_balance_threshold_toman || "0",
-      debt: admin.debt_limit_toman || "0",
+      threshold: wholeTomanText(admin.low_balance_threshold_toman || "0"),
+      debt: wholeTomanText(admin.debt_limit_toman || "0"),
       password: "",
     });
   }
@@ -1132,11 +1168,11 @@ export default function PrimePanelV2({
 
   function openOwnerPlanEdit(plan: PlanRow) {
     openActionDialog({
-      title: "ویرایش پلن",
-      description: "قیمت‌ها دقیقاً به تومان ذخیره می‌شوند؛ مثال: 400 یعنی 400 تومان برای هر GB.",
+      title: "ویرایش پلن و قیمت",
+      description: "قیمت هر GB را می‌توانید افزایش یا کاهش دهید. مبلغ تومان فقط به‌صورت عدد صحیح ذخیره می‌شود.",
       fields: [
         { key: "name", label: "نام پلن", type: "text", required: true },
-        { key: "price", label: "قیمت پایه هر GB (تومان)", type: "text", placeholder: "مثلاً 400", required: true },
+        { key: "price", label: "قیمت پایه هر GB (تومان)", type: "text", placeholder: "مثلاً 400", required: true, integer: true },
         { key: "min_quota", label: "حداقل حجم (GB)", type: "text", placeholder: "مثلاً 1" },
         { key: "max_quota", label: "حداکثر حجم (GB)", type: "text", placeholder: "خالی = نامحدود" },
         { key: "max_days", label: "حداکثر مدت (روز)", type: "text", placeholder: "خالی = نامحدود" },
@@ -1145,8 +1181,7 @@ export default function PrimePanelV2({
       submitLabel: "ذخیره پلن",
       successMessage: "پلن ویرایش شد",
       onSubmit: (values) => {
-        const price = exactNumber(values.price);
-        if (!Number.isFinite(price) || price <= 0) throw new Error("قیمت پایه باید یک مبلغ معتبر به تومان باشد.");
+        const price = requireWholeToman(values.price, "قیمت پایه هر GB");
         return authApi(`/api/v1/plans/${plan.id}`, {
           method: "PATCH",
           body: JSON.stringify({
@@ -1161,7 +1196,7 @@ export default function PrimePanelV2({
       },
     }, {
       name: plan.name,
-      price: String(plan.base_price_per_gib_toman || plan.cost_per_gib_toman || ""),
+      price: wholeTomanText(plan.base_price_per_gib_toman || plan.cost_per_gib_toman || ""),
       min_quota: String(plan.min_quota_gib || ""),
       max_quota: String(plan.max_quota_gib || ""),
       max_days: String(plan.max_duration_days || ""),
@@ -1174,16 +1209,19 @@ export default function PrimePanelV2({
       title: "قیمت فروش پلن",
       description: "مبلغ دقیق به تومان است؛ مثال: 800 یعنی 800 تومان برای هر GB.",
       fields: [
-        { key: "price", label: "قیمت فروش هر GB (تومان)", type: "text", placeholder: "مثلاً 800", required: true },
+        { key: "price", label: "قیمت فروش هر GB (تومان)", type: "text", placeholder: "مثلاً 800", required: true, integer: true },
       ],
       submitLabel: "ذخیره قیمت",
       successMessage: "قیمت فروش ذخیره شد",
-      onSubmit: (values) => authApi(`/api/v1/my-plans/${plan.id}/retail-price`, {
-        method: "PATCH",
-        body: JSON.stringify({ retail_price_per_gib_toman: exactNumber(values.price) }),
-      }),
+      onSubmit: (values) => {
+        const price = requireWholeToman(values.price, "قیمت فروش هر GB");
+        return authApi(`/api/v1/my-plans/${plan.id}/retail-price`, {
+          method: "PATCH",
+          body: JSON.stringify({ retail_price_per_gib_toman: price }),
+        });
+      },
     }, {
-      price: String(plan.retail_price_per_gib_toman || ""),
+      price: wholeTomanText(plan.retail_price_per_gib_toman || ""),
     });
   }
 
@@ -1747,18 +1785,21 @@ export default function PrimePanelV2({
               <button onClick={() => run(async () => {
                 const result = await authApi<{ redirect_url: string }>("/api/v1/wallet/topups/gateway", {
                   method: "POST",
-                  body: JSON.stringify({ amount_toman: Number(walletTopup) }),
+                  body: JSON.stringify({ amount_toman: requireWholeToman(walletTopup, "مبلغ شارژ") }),
                 });
                 window.open(result.redirect_url, "_blank", "noopener,noreferrer");
               }, "لینک درگاه ساخته شد")}>زرین‌پال</button>
-              <label>مبلغ<input type="number" value={walletTopup} onChange={(e) => setWalletTopup(e.target.value)} /></label>
+              <label>مبلغ<input type="number" min="1" step="1" inputMode="numeric" value={walletTopup} onChange={(e) => setWalletTopup(e.target.value)} /></label>
               <label>رسید کارت‌به‌کارت<input type="file" accept="image/*,.pdf" onChange={(e) => setWalletReceipt(e.target.files?.[0] || null)} /></label>
               <button onClick={() => {
                 if (!walletReceipt) return setError("رسید را انتخاب کنید");
-                const fd = new FormData();
-                fd.append("amount_toman", walletTopup);
-                fd.append("receipt", walletReceipt);
-                run(() => authApi("/api/v1/wallet/topups/card", { method: "POST", body: fd }), "رسید ارسال شد");
+                run(() => {
+                  const amount = requireWholeToman(walletTopup, "مبلغ شارژ");
+                  const fd = new FormData();
+                  fd.append("amount_toman", String(amount));
+                  fd.append("receipt", walletReceipt);
+                  return authApi("/api/v1/wallet/topups/card", { method: "POST", body: fd });
+                }, "رسید ارسال شد");
               }}>ارسال رسید کارت</button>
             </div>
           </section>
@@ -2350,7 +2391,7 @@ export default function PrimePanelV2({
           <label>نام نمایشی<input value={adminForm.display_name} onChange={(e) => setAdminForm({ ...adminForm, display_name: e.target.value })} /></label>
           <label>شناسه تلگرام<input type="number" value={adminForm.telegram_id} onChange={(e) => setAdminForm({ ...adminForm, telegram_id: e.target.value })} /></label>
           <label>رمز عبور<input type="password" minLength={10} value={adminForm.password} onChange={(e) => setAdminForm({ ...adminForm, password: e.target.value })} required /></label>
-          <label>موجودی اولیه<input type="number" value={adminForm.initial_balance_toman} onChange={(e) => setAdminForm({ ...adminForm, initial_balance_toman: e.target.value })} /></label>
+          <label>موجودی اولیه<input type="number" min="0" step="1" inputMode="numeric" value={adminForm.initial_balance_toman} onChange={(e) => setAdminForm({ ...adminForm, initial_balance_toman: e.target.value })} /></label>
           <button className="v2Primary" disabled={busy}>ساخت نماینده</button>
         </form>
       </Modal>
@@ -2470,6 +2511,13 @@ export default function PrimePanelV2({
                   body: JSON.stringify({ disabled: false }),
                 }), "کلاینت فعال شد")
             }>{selectedClient.status === "active" ? "غیرفعال‌کردن" : "فعال‌کردن"}</button>
+            <button className="danger" onClick={() => openConfirmAction({
+              title: "حذف کلاینت",
+              description: `کلاینت «${selectedClient.username}» از PasarGuard حذف شود؟ سابقه مالی و مصرف برای گزارش‌ها در PRIMEVPN حفظ می‌شود.`,
+              submitLabel: "حذف کلاینت",
+              successMessage: "کلاینت حذف شد",
+              action: () => authApi(`/api/v1/clients/${selectedClient.id}`, { method: "DELETE" }),
+            })}>حذف کلاینت</button>
           </div>
         </div>}
       </Modal>
@@ -2486,8 +2534,8 @@ export default function PrimePanelV2({
             />
           </label>
           <label>قیمت پایه هر GB (تومان)
-            <input inputMode="decimal" type="text" placeholder="مثلاً 400" value={planForm.base_price_per_gib_toman} onChange={(e) => setPlanForm({ ...planForm, base_price_per_gib_toman: e.target.value })} required />
-            <small className="primeFieldHint">مبلغ دقیق به تومان؛ 400 یعنی 400 تومان، نه 400 هزار تومان.</small>
+            <input inputMode="numeric" type="text" placeholder="مثلاً 400" value={planForm.base_price_per_gib_toman} onChange={(e) => setPlanForm({ ...planForm, base_price_per_gib_toman: e.target.value })} required />
+            <small className="primeFieldHint">فقط تومانِ بدون اعشار؛ مثال: 400.</small>
           </label>
           <label>حداقل حجم (GB)<input type="number" value={planForm.min_quota_gib} onChange={(e) => setPlanForm({ ...planForm, min_quota_gib: e.target.value })} /></label>
           <label>حداکثر حجم (GB)<input type="number" value={planForm.max_quota_gib} onChange={(e) => setPlanForm({ ...planForm, max_quota_gib: e.target.value })} /></label>
@@ -2505,7 +2553,7 @@ export default function PrimePanelV2({
             <p className="primeAutoPlanText">این پلن به‌صورت خودکار برای تمام نمایندگان فعال و تمام ربات‌های فروش آن‌ها در دسترس است.</p>
           </div>
           {user.role === "owner" ? <>
-            <button onClick={() => openOwnerPlanEdit(selectedPlan)}>ویرایش پلن</button>
+            <button onClick={() => openOwnerPlanEdit(selectedPlan)}>ویرایش پلن و قیمت هر GB</button>
             {selectedPlan.enabled === false ? (
               <button onClick={() => run(
                 () => authApi(`/api/v1/plans/${selectedPlan.id}`, {
@@ -2646,7 +2694,8 @@ export default function PrimePanelV2({
                 {field.label}
                 <input
                   type={field.type || "text"}
-                  inputMode={field.type === "number" ? "numeric" : undefined}
+                  inputMode={field.integer || field.type === "number" ? "numeric" : undefined}
+                  step={field.integer && field.type === "number" ? "1" : undefined}
                   value={actionValues[field.key] || ""}
                   placeholder={field.placeholder}
                   required={field.required}
