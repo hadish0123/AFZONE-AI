@@ -8,7 +8,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel, Field, HttpUrl
-from sqlalchemy import select, text
+from sqlalchemy import and_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from redis.asyncio import Redis
 
@@ -633,19 +633,34 @@ async def list_plans(
             "enabled": plan.enabled,
         } for plan in rows]
 
-    rows = (await db.execute(
-        select(AdminPlan, Plan)
-        .join(Plan, Plan.id == AdminPlan.plan_id)
-        .where(AdminPlan.admin_id == user.id, AdminPlan.enabled.is_(True), Plan.enabled.is_(True))
-    )).all()
+    rows = (
+        await db.execute(
+            select(Plan, AdminPlan)
+            .outerjoin(
+                AdminPlan,
+                and_(
+                    AdminPlan.plan_id == Plan.id,
+                    AdminPlan.admin_id == user.id,
+                    AdminPlan.enabled.is_(True),
+                ),
+            )
+            .where(Plan.enabled.is_(True))
+            .order_by(Plan.name)
+        )
+    ).all()
     return [{
         "id": str(plan.id),
         "name": plan.name,
         "group_id": str(plan.group_id),
         "cost_per_gib_toman": str(plan.base_price_per_gib_toman),
-        "retail_price_per_gib_toman": str(admin_plan.retail_price_per_gib_toman),
-        "bot_visible": admin_plan.bot_visible,
-    } for admin_plan, plan in rows]
+        "retail_price_per_gib_toman": str(
+            admin_plan.retail_price_per_gib_toman
+            if admin_plan
+            else plan.base_price_per_gib_toman
+        ),
+        "bot_visible": True,
+        "automatic": admin_plan is None,
+    } for plan, admin_plan in rows]
 
 
 @app.get(f"{settings.api_prefix}/admins/{{admin_id}}/plans")
@@ -654,26 +669,42 @@ async def list_admin_assignments(
     _: User = Depends(require_owner),
     db: AsyncSession = Depends(get_db),
 ):
-    admin = await db.scalar(select(User).where(User.id == admin_id, User.role == Role.ADMIN))
+    admin = await db.scalar(
+        select(User).where(
+            User.id == admin_id,
+            User.role == Role.ADMIN,
+        )
+    )
     if not admin:
         raise HTTPException(status_code=404, detail="admin not found")
+
     rows = (
         await db.execute(
-            select(AdminPlan, Plan)
-            .join(Plan, Plan.id == AdminPlan.plan_id)
-            .where(AdminPlan.admin_id == admin_id)
+            select(Plan, AdminPlan)
+            .outerjoin(
+                AdminPlan,
+                and_(
+                    AdminPlan.plan_id == Plan.id,
+                    AdminPlan.admin_id == admin_id,
+                    AdminPlan.enabled.is_(True),
+                ),
+            )
+            .where(Plan.enabled.is_(True))
             .order_by(Plan.name)
         )
     ).all()
     return [{
-        "assignment_id": str(item.id),
+        "assignment_id": str(item.id) if item else None,
         "plan_id": str(plan.id),
         "name": plan.name,
-        "enabled": item.enabled,
-        "bot_visible": item.bot_visible,
+        "enabled": True,
+        "bot_visible": True,
         "base_price_per_gib_toman": str(plan.base_price_per_gib_toman),
-        "retail_price_per_gib_toman": str(item.retail_price_per_gib_toman),
-    } for item, plan in rows]
+        "retail_price_per_gib_toman": str(
+            item.retail_price_per_gib_toman if item else plan.base_price_per_gib_toman
+        ),
+        "automatic": item is None,
+    } for plan, item in rows]
 
 
 @app.post(f"{settings.api_prefix}/plans", status_code=201)
@@ -711,10 +742,16 @@ async def assign_plan(
         select(AdminPlan).where(AdminPlan.admin_id == admin.id, AdminPlan.plan_id == plan.id)
     )
     if not item:
-        item = AdminPlan(admin_id=admin.id, plan_id=plan.id, retail_price_per_gib_toman=payload.retail_price_per_gib_toman)
+        item = AdminPlan(
+            admin_id=admin.id,
+            plan_id=plan.id,
+            retail_price_per_gib_toman=payload.retail_price_per_gib_toman,
+            bot_visible=True,
+            enabled=True,
+        )
         db.add(item)
     item.retail_price_per_gib_toman = payload.retail_price_per_gib_toman
-    item.bot_visible = payload.bot_visible
+    item.bot_visible = True
     item.enabled = True
     await db.commit()
     return {"ok": True}
@@ -802,16 +839,6 @@ async def create_client(
     plan = await db.scalar(select(Plan).where(Plan.id == payload.plan_id, Plan.enabled.is_(True)))
     if not plan:
         raise HTTPException(status_code=404, detail="plan not found")
-
-    allowed = await db.scalar(
-        select(AdminPlan).where(
-            AdminPlan.admin_id == admin.id,
-            AdminPlan.plan_id == plan.id,
-            AdminPlan.enabled.is_(True),
-        )
-    )
-    if not allowed:
-        raise HTTPException(status_code=403, detail="plan is not assigned to this admin")
 
     if plan.min_quota_gib is not None and payload.quota_gib < plan.min_quota_gib:
         raise HTTPException(status_code=400, detail="quota below plan minimum")
@@ -2193,10 +2220,9 @@ async def unassign_admin_plan(
     item = await db.scalar(
         select(AdminPlan).where(AdminPlan.admin_id == admin_id, AdminPlan.plan_id == plan_id)
     )
-    if not item:
-        return None
-    item.enabled = False
-    await db.commit()
+    if item:
+        await db.delete(item)
+        await db.commit()
     return None
 
 
@@ -2209,19 +2235,33 @@ async def update_my_retail_price(
 ):
     if user.role != Role.ADMIN:
         raise HTTPException(status_code=403, detail="admin access required")
+    plan = await db.scalar(
+        select(Plan).where(Plan.id == plan_id, Plan.enabled.is_(True))
+    )
+    if not plan:
+        raise HTTPException(status_code=404, detail="plan not found")
+    if payload.retail_price_per_gib_toman < plan.base_price_per_gib_toman:
+        raise HTTPException(status_code=400, detail="retail price cannot be below owner cost")
+
     item = await db.scalar(
         select(AdminPlan).where(
             AdminPlan.admin_id == user.id,
             AdminPlan.plan_id == plan_id,
-            AdminPlan.enabled.is_(True),
         ).with_for_update()
     )
     if not item:
-        raise HTTPException(status_code=404, detail="assigned plan not found")
-    plan = await db.scalar(select(Plan).where(Plan.id == plan_id))
-    if payload.retail_price_per_gib_toman < plan.base_price_per_gib_toman:
-        raise HTTPException(status_code=400, detail="retail price cannot be below owner cost")
-    item.retail_price_per_gib_toman = payload.retail_price_per_gib_toman
+        item = AdminPlan(
+            admin_id=user.id,
+            plan_id=plan_id,
+            enabled=True,
+            bot_visible=True,
+            retail_price_per_gib_toman=payload.retail_price_per_gib_toman,
+        )
+        db.add(item)
+    else:
+        item.enabled = True
+        item.bot_visible = True
+        item.retail_price_per_gib_toman = payload.retail_price_per_gib_toman
     await db.commit()
     return {"ok": True, "retail_price_per_gib_toman": str(item.retail_price_per_gib_toman)}
 
