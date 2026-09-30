@@ -267,6 +267,25 @@ type ModalKind =
   | "bank-card"
   | "qr";
 
+type ActionField = {
+  key: string;
+  label: string;
+  type?: "text" | "number" | "password" | "url";
+  placeholder?: string;
+  required?: boolean;
+};
+
+type ActionDialogState = {
+  title: string;
+  description?: string;
+  notice?: string;
+  fields: ActionField[];
+  submitLabel: string;
+  destructive?: boolean;
+  successMessage: string;
+  onSubmit: (values: Record<string, string>) => Promise<unknown>;
+};
+
 const navigation = [
   { key: "dashboard", label: "داشبورد", icon: LayoutDashboard, owner: true, admin: true },
   { key: "admins", label: "نمایندگان", icon: Users, owner: true, admin: false },
@@ -447,6 +466,8 @@ export default function PrimePanelV2({
   const [section, setSection] = useState("dashboard");
   const [drawer, setDrawer] = useState(false);
   const [modal, setModal] = useState<ModalKind>(null);
+  const [actionDialog, setActionDialog] = useState<ActionDialogState | null>(null);
+  const [actionValues, setActionValues] = useState<Record<string, string>>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -596,6 +617,7 @@ export default function PrimePanelV2({
       await fn();
       setSuccess(message);
       await reloadSection();
+      setActionDialog(null);
       setModal(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "عملیات ناموفق بود");
@@ -1005,15 +1027,257 @@ export default function PrimePanelV2({
     setTimeout(() => URL.revokeObjectURL(url), 30000);
   }
 
+  function openActionDialog(config: ActionDialogState, defaults: Record<string, string> = {}) {
+    const values: Record<string, string> = {};
+    for (const field of config.fields) values[field.key] = defaults[field.key] || "";
+    setActionValues(values);
+    setError("");
+    setActionDialog(config);
+  }
+
+  async function submitActionDialog(e: FormEvent) {
+    e.preventDefault();
+    if (!actionDialog) return;
+
+    for (const field of actionDialog.fields) {
+      if (field.required && !String(actionValues[field.key] || "").trim()) {
+        setError(`${field.label} الزامی است.`);
+        return;
+      }
+    }
+
+    setBusy(true);
+    setError("");
+    setSuccess("");
+    try {
+      await actionDialog.onSubmit(actionValues);
+      setSuccess(actionDialog.successMessage);
+      await reloadSection();
+      setActionDialog(null);
+      setModal(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "عملیات ناموفق بود");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function openAdminWalletTopup(admin: AdminRow) {
+    openActionDialog({
+      title: "شارژ کیف پول نماینده",
+      description: `افزایش موجودی کیف پول ${admin.display_name || admin.username}`,
+      fields: [
+        { key: "amount", label: "مبلغ شارژ (تومان)", type: "number", placeholder: "مثلاً ۵۰۰۰۰", required: true },
+      ],
+      submitLabel: "شارژ کیف پول",
+      successMessage: "کیف پول شارژ شد",
+      onSubmit: (values) => authApi(`/api/v1/admins/${admin.id}/wallet/topup`, {
+        method: "POST",
+        body: JSON.stringify({ amount_toman: Number(values.amount), note: "Owner top-up" }),
+      }),
+    });
+  }
+
+  function openAdminEdit(admin: AdminRow) {
+    openActionDialog({
+      title: "ویرایش مشخصات نماینده",
+      description: `ویرایش ${admin.display_name || admin.username}`,
+      fields: [
+        { key: "display_name", label: "نام نمایشی", type: "text" },
+        { key: "telegram_id", label: "Telegram ID", type: "number" },
+        { key: "threshold", label: "حد هشدار کیف پول", type: "number" },
+        { key: "debt", label: "سقف بدهی", type: "number" },
+        { key: "password", label: "رمز جدید", type: "password", placeholder: "خالی = بدون تغییر" },
+      ],
+      submitLabel: "ذخیره تغییرات",
+      successMessage: "نماینده ویرایش شد",
+      onSubmit: (values) => authApi(`/api/v1/admins/${admin.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          display_name: values.display_name || null,
+          telegram_id: values.telegram_id ? Number(values.telegram_id) : null,
+          low_balance_threshold_toman: Number(values.threshold || 0),
+          debt_limit_toman: Number(values.debt || 0),
+          password: values.password || null,
+        }),
+      }),
+    }, {
+      display_name: admin.display_name || "",
+      telegram_id: admin.telegram_id ? String(admin.telegram_id) : "",
+      threshold: admin.low_balance_threshold_toman || "0",
+      debt: admin.debt_limit_toman || "0",
+      password: "",
+    });
+  }
+
+  function openClientEdit(client: ClientRow) {
+    openActionDialog({
+      title: "ویرایش کلاینت",
+      description: client.username,
+      fields: [
+        { key: "quota", label: "حجم جدید GB", type: "number", placeholder: "خالی = تغییر نکند" },
+        { key: "days", label: "تمدید از امروز (روز)", type: "number", placeholder: "خالی = تغییر نکند" },
+        { key: "hwid", label: "تعداد دستگاه", type: "number", placeholder: "خالی = تغییر نکند" },
+      ],
+      submitLabel: "ذخیره تغییرات",
+      successMessage: "کلاینت ویرایش شد",
+      onSubmit: (values) => authApi(`/api/v1/clients/${client.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          quota_gib: values.quota ? Number(values.quota) : null,
+          duration_days_from_now: values.days ? Number(values.days) : null,
+          hwid_limit: values.hwid ? Number(values.hwid) : null,
+        }),
+      }),
+    });
+  }
+
+  function openOwnerPlanEdit(plan: PlanRow) {
+    openActionDialog({
+      title: "ویرایش پلن",
+      description: plan.name,
+      fields: [
+        { key: "name", label: "نام پلن", type: "text", required: true },
+        { key: "price", label: "قیمت پایه هر GB", type: "number", required: true },
+      ],
+      submitLabel: "ذخیره پلن",
+      successMessage: "پلن ویرایش شد",
+      onSubmit: (values) => authApi(`/api/v1/plans/${plan.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ name: values.name, base_price_per_gib_toman: Number(values.price) }),
+      }),
+    }, {
+      name: plan.name,
+      price: String(plan.base_price_per_gib_toman || ""),
+    });
+  }
+
+  function openRetailPlanEdit(plan: PlanRow) {
+    openActionDialog({
+      title: "قیمت فروش پلن",
+      description: plan.name,
+      fields: [
+        { key: "price", label: "قیمت فروش هر GB", type: "number", required: true },
+      ],
+      submitLabel: "ذخیره قیمت",
+      successMessage: "قیمت فروش ذخیره شد",
+      onSubmit: (values) => authApi(`/api/v1/my-plans/${plan.id}/retail-price`, {
+        method: "PATCH",
+        body: JSON.stringify({ retail_price_per_gib_toman: Number(values.price) }),
+      }),
+    }, {
+      price: String(plan.retail_price_per_gib_toman || ""),
+    });
+  }
+
+  function openConnectionEdit(connection: ConnectionRow) {
+    openActionDialog({
+      title: "ویرایش اتصال PasarGuard",
+      description: connection.name,
+      fields: [
+        { key: "name", label: "نام اتصال", type: "text", required: true },
+        { key: "url", label: "Panel URL", type: "url", required: true },
+        { key: "token", label: "API Token جدید", type: "password", placeholder: "خالی = بدون تغییر" },
+      ],
+      submitLabel: "ذخیره اتصال",
+      successMessage: "اتصال ویرایش شد",
+      onSubmit: (values) => authApi(`/api/v1/connections/${connection.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: values.name,
+          base_url: values.url,
+          api_token: values.token || null,
+          enabled: true,
+        }),
+      }),
+    }, {
+      name: connection.name,
+      url: connection.base_url,
+      token: "",
+    });
+  }
+
+  function openBotEdit(bot: BotRow) {
+    openActionDialog({
+      title: "ویرایش ربات فروش",
+      description: bot.username ? `@${bot.username}` : bot.name,
+      fields: [
+        { key: "name", label: "نام ربات", type: "text", required: true },
+        { key: "token", label: "Bot Token جدید", type: "password", placeholder: "خالی = بدون تغییر" },
+      ],
+      submitLabel: "ذخیره ربات",
+      successMessage: "ربات ویرایش شد",
+      onSubmit: (values) => authApi(`/api/v1/bots/${bot.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ name: values.name, token: values.token || null }),
+      }),
+    }, {
+      name: bot.name,
+      token: "",
+    });
+  }
+
+  async function openEnable2FA() {
+    setBusy(true);
+    setError("");
+    try {
+      const setup = await authApi<{ secret: string; recovery_codes: string[] }>("/api/v1/security/2fa/setup", { method: "POST" });
+      openActionDialog({
+        title: "فعال‌سازی 2FA",
+        description: "Secret و Recovery Codeها را قبل از ادامه در جای امن ذخیره کنید.",
+        notice: `Secret: ${setup.secret}\n\nRecovery Codes:\n${setup.recovery_codes.join("   ")}`,
+        fields: [
+          { key: "code", label: "کد ۶ رقمی Authenticator", type: "number", required: true },
+        ],
+        submitLabel: "فعال‌سازی 2FA",
+        successMessage: "2FA فعال شد",
+        onSubmit: (values) => authApi("/api/v1/security/2fa/enable", {
+          method: "POST",
+          body: JSON.stringify({ code: values.code }),
+        }),
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "ساخت تنظیمات 2FA ناموفق بود");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function openDisable2FA() {
+    openActionDialog({
+      title: "غیرفعال‌کردن 2FA",
+      description: "برای تأیید، کد فعلی Authenticator را وارد کنید.",
+      fields: [
+        { key: "code", label: "کد Authenticator", type: "number", required: true },
+      ],
+      submitLabel: "غیرفعال‌کردن 2FA",
+      destructive: true,
+      successMessage: "2FA غیرفعال شد",
+      onSubmit: (values) => authApi("/api/v1/security/2fa/disable", {
+        method: "POST",
+        body: JSON.stringify({ code: values.code }),
+      }),
+    });
+  }
+
   async function restoreBackup() {
     if (!backupFile) {
       setError("فایل Backup را انتخاب کنید");
       return;
     }
-    if (!window.confirm("Restore به صورت Merge انجام شود؟ داده فعلی حذف نمی‌شود.")) return;
-    const fd = new FormData();
-    fd.append("backup", backupFile);
-    await run(() => authApi("/api/v1/backups/restore", { method: "POST", body: fd }), "Backup بازیابی شد");
+    openActionDialog({
+      title: "بازیابی Backup",
+      description: "Restore به‌صورت Merge انجام می‌شود و داده فعلی حذف نمی‌شود.",
+      fields: [],
+      submitLabel: "شروع بازیابی",
+      destructive: true,
+      successMessage: "Backup بازیابی شد",
+      onSubmit: async () => {
+        const fd = new FormData();
+        fd.append("backup", backupFile);
+        return authApi("/api/v1/backups/restore", { method: "POST", body: fd });
+      },
+    });
   }
 
   function renderDashboard() {
@@ -1933,17 +2197,9 @@ export default function PrimePanelV2({
                 <p><ShieldCheck size={18} /><span>وضعیت: {twoFactor?.enabled ? "فعال" : "غیرفعال"}</span><small>احراز هویت دو مرحله‌ای پنل</small></p>
               </div>
               {!twoFactor?.enabled ? (
-                <button className="primeSecurityButton" onClick={() => run(async () => {
-                  const setup = await authApi<{ secret: string; recovery_codes: string[] }>("/api/v1/security/2fa/setup", { method: "POST" });
-                  const code = window.prompt(`Secret:\n${setup.secret}\n\nRecovery:\n${setup.recovery_codes.join("  ")}\n\nکد ۶ رقمی:`);
-                  if (!code) throw new Error("فعال‌سازی لغو شد");
-                  await authApi("/api/v1/security/2fa/enable", { method: "POST", body: JSON.stringify({ code }) });
-                }, "2FA فعال شد")}>فعال‌سازی 2FA</button>
+                <button className="primeSecurityButton" disabled={busy} onClick={openEnable2FA}>فعال‌سازی 2FA</button>
               ) : (
-                <button className="primeSecurityButton" onClick={() => {
-                  const code = window.prompt("کد Authenticator:");
-                  if (code) run(() => authApi("/api/v1/security/2fa/disable", { method: "POST", body: JSON.stringify({ code }) }), "2FA غیرفعال شد");
-                }}>غیرفعال‌کردن 2FA</button>
+                <button className="primeSecurityButton" disabled={busy} onClick={openDisable2FA}>غیرفعال‌کردن 2FA</button>
               )}
             </div>
           </section>
@@ -2086,28 +2342,8 @@ export default function PrimePanelV2({
             </div>
           </article>
           <div className="v2ActionGrid">
-            <button onClick={() => {
-              const amount = window.prompt("مبلغ شارژ تومان:");
-              if (amount) run(() => authApi(`/api/v1/admins/${selectedAdmin.id}/wallet/topup`, { method: "POST", body: JSON.stringify({ amount_toman: Number(amount), note: "Owner top-up" }) }), "کیف پول شارژ شد");
-            }}>شارژ کیف پول</button>
-            <button onClick={() => {
-              const name = window.prompt("نام نمایشی:", selectedAdmin.display_name || "");
-              if (name === null) return;
-              const tg = window.prompt("Telegram ID:", selectedAdmin.telegram_id ? String(selectedAdmin.telegram_id) : "");
-              const threshold = window.prompt("حد هشدار کیف پول:", selectedAdmin.low_balance_threshold_toman || "0");
-              const debt = window.prompt("سقف بدهی:", selectedAdmin.debt_limit_toman || "0");
-              const password = window.prompt("رمز جدید (خالی = بدون تغییر):", "");
-              run(() => authApi(`/api/v1/admins/${selectedAdmin.id}`, {
-                method: "PATCH",
-                body: JSON.stringify({
-                  display_name: name,
-                  telegram_id: tg ? Number(tg) : null,
-                  low_balance_threshold_toman: Number(threshold || 0),
-                  debt_limit_toman: Number(debt || 0),
-                  password: password || null,
-                }),
-              }), "نماینده ویرایش شد");
-            }}>ویرایش مشخصات</button>
+            <button onClick={() => openAdminWalletTopup(selectedAdmin)}>شارژ کیف پول</button>
+            <button onClick={() => openAdminEdit(selectedAdmin)}>ویرایش مشخصات</button>
             <button className="danger" onClick={() => run(() => authApi(`/api/v1/admins/${selectedAdmin.id}`, {
               method: "PATCH",
               body: JSON.stringify({ status: selectedAdmin.status === "active" ? "disabled" : "active" }),
@@ -2165,19 +2401,7 @@ export default function PrimePanelV2({
             <div><strong>Subscription</strong><span>{selectedClient.subscription_url}</span><button onClick={() => navigator.clipboard.writeText(selectedClient.subscription_url || "")}><Copy size={14} /> کپی</button></div>
           </div>}
           <div className="v2ActionGrid">
-            <button onClick={() => {
-              const quota = window.prompt("حجم جدید GB (خالی = تغییر نکند):", "");
-              const days = window.prompt("تمدید از امروز چند روز؟ (خالی = تغییر نکند):", "");
-              const hwid = window.prompt("تعداد دستگاه (خالی = تغییر نکند):", "");
-              run(() => authApi(`/api/v1/clients/${selectedClient.id}`, {
-                method: "PATCH",
-                body: JSON.stringify({
-                  quota_gib: quota ? Number(quota) : null,
-                  duration_days_from_now: days ? Number(days) : null,
-                  hwid_limit: hwid ? Number(hwid) : null,
-                }),
-              }), "کلاینت ویرایش شد");
-            }}>ویرایش حجم/مدت/HWID</button>
+            <button onClick={() => openClientEdit(selectedClient)}>ویرایش حجم/مدت/HWID</button>
             <button onClick={() => run(() => authApi(`/api/v1/clients/${selectedClient.id}/reset-usage`, { method: "POST" }), "مصرف Reset شد")}>Reset Usage</button>
             <button onClick={() => run(() => authApi(`/api/v1/clients/${selectedClient.id}/revoke-subscription`, { method: "POST" }), "Subscription عوض شد")}>Revoke Subscription</button>
             <button className="danger" onClick={() => run(() => authApi(`/api/v1/clients/${selectedClient.id}`, {
@@ -2228,16 +2452,9 @@ export default function PrimePanelV2({
               <button className="v2Primary" disabled={busy || !assignmentAdminId || !assignmentPrice} onClick={assignSelectedPlan}>تخصیص پلن</button>
               {!assignmentAdminId && <small className="primeFieldHint">برای ادامه یک نماینده فعال را انتخاب کنید.</small>}
             </div>
-            <button onClick={() => {
-              const name = window.prompt("نام پلن:", selectedPlan.name);
-              const price = window.prompt("قیمت پایه هر GB:", selectedPlan.base_price_per_gib_toman || "");
-              if (name && price) run(() => authApi(`/api/v1/plans/${selectedPlan.id}`, { method: "PATCH", body: JSON.stringify({ name, base_price_per_gib_toman: Number(price) }) }), "پلن ویرایش شد");
-            }}>ویرایش پلن</button>
+            <button onClick={() => openOwnerPlanEdit(selectedPlan)}>ویرایش پلن</button>
             <button className="v2Danger" onClick={() => run(() => authApi(`/api/v1/plans/${selectedPlan.id}`, { method: "DELETE" }), "پلن خاموش شد")}>خاموش‌کردن پلن</button>
-          </> : <button onClick={() => {
-            const price = window.prompt("قیمت فروش هر GB:", selectedPlan.retail_price_per_gib_toman || "");
-            if (price) run(() => authApi(`/api/v1/my-plans/${selectedPlan.id}/retail-price`, { method: "PATCH", body: JSON.stringify({ retail_price_per_gib_toman: Number(price) }) }), "قیمت فروش ذخیره شد");
-          }}>تغییر قیمت فروش</button>}
+          </> : <button onClick={() => openRetailPlanEdit(selectedPlan)}>تغییر قیمت فروش</button>}
         </div>}
       </Modal>
 
@@ -2254,15 +2471,7 @@ export default function PrimePanelV2({
         {selectedConnection && <div className="v2ActionGrid">
           <button onClick={() => run(() => authApi(`/api/v1/connections/${selectedConnection.id}/test`, { method: "POST" }), "اتصال سالم است")}>Test Connection</button>
           <button onClick={() => run(() => authApi(`/api/v1/connections/${selectedConnection.id}/sync-groups`, { method: "POST" }), "Groupها Sync شدند")}>Sync Groups</button>
-          <button onClick={() => {
-            const name = window.prompt("نام اتصال:", selectedConnection.name);
-            const url = window.prompt("URL:", selectedConnection.base_url);
-            const token = window.prompt("Token جدید (خالی = بدون تغییر):", "");
-            if (name && url) run(() => authApi(`/api/v1/connections/${selectedConnection.id}`, {
-              method: "PATCH",
-              body: JSON.stringify({ name, base_url: url, api_token: token || null, enabled: true }),
-            }), "اتصال ویرایش شد");
-          }}>ویرایش اتصال</button>
+          <button onClick={() => openConnectionEdit(selectedConnection)}>ویرایش اتصال</button>
           <button className="v2Danger" onClick={() => run(() => authApi(`/api/v1/connections/${selectedConnection.id}`, { method: "DELETE" }), "اتصال غیرفعال شد")}>Disable</button>
         </div>}
       </Modal>
@@ -2301,11 +2510,7 @@ export default function PrimePanelV2({
             <button onClick={() => run(() => authApi(`/api/v1/bots/${selectedBot.id}`, { method: "PATCH", body: JSON.stringify({ customer_wallet_enabled: !selectedBot.customer_wallet_enabled }) }), "Wallet تغییر کرد")}>Wallet {selectedBot.customer_wallet_enabled ? "ON" : "OFF"}</button>
             <button onClick={() => run(() => authApi(`/api/v1/bots/${selectedBot.id}`, { method: "PATCH", body: JSON.stringify({ card_to_card_enabled: !selectedBot.card_to_card_enabled }) }), "Card تغییر کرد")}>Card {selectedBot.card_to_card_enabled ? "ON" : "OFF"}</button>
             <button onClick={() => run(() => authApi(`/api/v1/bots/${selectedBot.id}`, { method: "PATCH", body: JSON.stringify({ gateway_enabled: !selectedBot.gateway_enabled }) }), "Gateway تغییر کرد")}>Gateway {selectedBot.gateway_enabled ? "ON" : "OFF"}</button>
-            <button onClick={() => {
-              const name = window.prompt("نام ربات:", selectedBot.name);
-              const token = window.prompt("Token جدید (خالی = بدون تغییر):", "");
-              if (name) run(() => authApi(`/api/v1/bots/${selectedBot.id}`, { method: "PATCH", body: JSON.stringify({ name, token: token || null }) }), "ربات ویرایش شد");
-            }}>نام / Token</button>
+            <button onClick={() => openBotEdit(selectedBot)}>نام / Token</button>
             <button className="v2Danger" onClick={() => run(() => authApi(`/api/v1/bots/${selectedBot.id}`, { method: "DELETE" }), "ربات خاموش شد")}>خاموش‌کردن</button>
           </div>
           <article className="v2Card nested">
@@ -2338,6 +2543,41 @@ export default function PrimePanelV2({
           <label className="v2Check"><input type="checkbox" checked={cardForm.is_default} onChange={(e) => setCardForm({ ...cardForm, is_default: e.target.checked })} /> کارت پیش‌فرض</label>
           <button className="v2Primary">ذخیره کارت</button>
         </form>
+      </Modal>
+
+
+      <Modal
+        open={Boolean(actionDialog)}
+        title={actionDialog?.title || "عملیات"}
+        onClose={() => !busy && setActionDialog(null)}
+      >
+        {actionDialog && (
+          <form className="v2Form primeActionDialog" onSubmit={submitActionDialog}>
+            {actionDialog.description && <p className="primeActionDescription">{actionDialog.description}</p>}
+            {actionDialog.notice && <pre className="primeActionNotice">{actionDialog.notice}</pre>}
+            {actionDialog.fields.map((field) => (
+              <label key={field.key}>
+                {field.label}
+                <input
+                  type={field.type || "text"}
+                  inputMode={field.type === "number" ? "numeric" : undefined}
+                  value={actionValues[field.key] || ""}
+                  placeholder={field.placeholder}
+                  required={field.required}
+                  autoComplete={field.type === "password" ? "new-password" : "off"}
+                  onChange={(e) => setActionValues((old) => ({ ...old, [field.key]: e.target.value }))}
+                />
+              </label>
+            ))}
+            <button
+              className={actionDialog.destructive ? "v2Primary primeActionDanger" : "v2Primary"}
+              disabled={busy}
+              type="submit"
+            >
+              {busy ? "در حال انجام..." : actionDialog.submitLabel}
+            </button>
+          </form>
+        )}
       </Modal>
     </main>
   );
