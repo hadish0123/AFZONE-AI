@@ -1080,13 +1080,16 @@ async def admin_wallet_topup_options(
         raise HTTPException(status_code=503, detail="owner account unavailable")
 
     profile = await _get_or_create_payment_profile(db, owner.id)
+    from app.services.commerce import default_bank_card
+    card = await default_bank_card(db, owner.id)
     await db.commit()
     return {
         "card_to_card": {
-            "enabled": profile.card_to_card_enabled and bool(profile.card_number),
-            "card_number": profile.card_number if profile.card_to_card_enabled else None,
-            "card_holder_name": profile.card_holder_name if profile.card_to_card_enabled else None,
-            "instructions": profile.card_instructions if profile.card_to_card_enabled else None,
+            "enabled": bool(card),
+            "card_id": str(card.id) if card else None,
+            "card_number": card.card_number if card else None,
+            "card_holder_name": card.card_holder_name if card else None,
+            "instructions": card.instructions if card else None,
         },
         "gateway": {
             "enabled": profile.gateway_enabled and bool(profile.gateway_provider),
@@ -1109,8 +1112,9 @@ async def create_admin_card_topup(
     owner = await db.scalar(select(User).where(User.role == Role.OWNER))
     if owner is None:
         raise HTTPException(status_code=503, detail="owner account unavailable")
-    profile = await _get_or_create_payment_profile(db, owner.id)
-    if not profile.card_to_card_enabled or not profile.card_number:
+    from app.services.commerce import default_bank_card
+    card = await default_bank_card(db, owner.id)
+    if not card:
         raise HTTPException(status_code=409, detail="owner card-to-card payment is disabled")
 
     allowed_types = {"image/jpeg", "image/png", "image/webp", "application/pdf"}
@@ -2422,9 +2426,8 @@ async def create_order_checkout(
 
         if payload.payment_method == PaymentMethod.CARD_TO_CARD:
             payment = await create_card_order_payment(db, order)
-            profile = await db.scalar(
-                select(PaymentProfile).where(PaymentProfile.owner_user_id == admin.id)
-            )
+            from app.services.commerce import default_bank_card
+            card = await default_bank_card(db, admin.id)
             await db.commit()
             return {
                 "order_id": str(order.id),
@@ -2432,9 +2435,10 @@ async def create_order_checkout(
                 "payment_id": str(payment.id),
                 "payment_status": payment.status.value,
                 "amount_toman": str(payment.amount_toman),
-                "card_number": profile.card_number if profile else None,
-                "card_holder_name": profile.card_holder_name if profile else None,
-                "card_instructions": profile.card_instructions if profile else None,
+                "card_id": str(card.id) if card else None,
+                "card_number": card.card_number if card else None,
+                "card_holder_name": card.card_holder_name if card else None,
+                "card_instructions": card.instructions if card else None,
             }
 
         if payload.payment_method == PaymentMethod.GATEWAY:
