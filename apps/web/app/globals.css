@@ -4375,3 +4375,73 @@ body:has(.primeLoginPage){padding-bottom:0!important;background:#031329!importan
     min-width:130px;
   }
 }
+
+
+/* PRIMEVPN unified action dialogs — replaces browser prompt/confirm UI */
+.primeActionDialog{
+  display:grid;
+  gap:13px!important;
+}
+.primeActionDescription{
+  margin:0;
+  padding:12px 13px;
+  border-radius:13px;
+  border:1px solid rgba(63,110,255,.20);
+  background:linear-gradient(145deg,rgba(10,38,77,.52),rgba(6,27,57,.60));
+  color:#9fb1ca;
+  font-size:11px;
+  line-height:1.9;
+}
+.primeActionNotice{
+  margin:0;
+  max-height:230px;
+  overflow:auto;
+  white-space:pre-wrap;
+  word-break:break-word;
+  direction:ltr;
+  text-align:left;
+  padding:13px;
+  border-radius:14px;
+  border:1px solid rgba(48,205,255,.28);
+  background:
+    radial-gradient(circle at 86% 10%,rgba(53,213,255,.08),transparent 34%),
+    linear-gradient(145deg,rgba(6,31,68,.92),rgba(5,24,54,.96));
+  color:#d8efff;
+  font:500 10px/1.8 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  box-shadow:inset 0 0 18px rgba(48,205,255,.025);
+}
+.primeActionDialog label{
+  color:#c1cee2!important;
+  font-size:11px!important;
+  line-height:1.5!important;
+}
+.primeActionDialog input{
+  min-height:53px!important;
+  border-radius:13px!important;
+  border:1px solid rgba(54,119,255,.43)!important;
+  background:
+    radial-gradient(circle at 88% 25%,rgba(109,48,255,.08),transparent 38%),
+    linear-gradient(145deg,rgba(6,31,68,.96),rgba(5,25,56,.98))!important;
+  color:#f4f8ff!important;
+  padding:0 13px!important;
+  font-size:12px!important;
+}
+.primeActionDialog input:focus{
+  outline:none!important;
+  border-color:#37dfff!important;
+  box-shadow:0 0 0 3px rgba(55,223,255,.055),0 0 16px rgba(55,223,255,.09)!important;
+}
+.primeActionDialog .primeActionDanger{
+  color:#fff!important;
+  border-color:rgba(255,105,116,.50)!important;
+  background:
+    radial-gradient(circle at 18% 20%,rgba(255,196,70,.26),transparent 34%),
+    linear-gradient(105deg,#ffb043,#ff7b4d 48%,#ff536d 100%)!important;
+  box-shadow:0 0 19px rgba(255,91,106,.17)!important;
+}
+@media(max-width:760px){
+  .primeActionDialog{gap:10px!important}
+  .primeActionDescription{padding:10px 11px;font-size:10px}
+  .primeActionNotice{max-height:180px;font-size:9px;padding:11px}
+  .primeActionDialog input{min-height:49px!important}
+}
