@@ -1334,7 +1334,7 @@ export default function PrimePanelV2({
               <strong>مرکز عملیات</strong>
               <span>پایش وضعیت سرویس‌ها و زیرساخت‌ها</span>
             </div>
-            <div className="primeDashLive"><i />LIVE</div>
+            <div className="primeDashLive"><i />زنده</div>
           </div>
 
           <div className="primeDashServiceList">
@@ -1912,7 +1912,7 @@ export default function PrimePanelV2({
               <i />
             </div>
             <div className="primeCommerceTable">
-              <div className="primeCommerceTableHead"><span>مشتری</span><span>Telegram</span><span>کیف پول</span><span>تاریخ عضویت</span><span>وضعیت</span></div>
+              <div className="primeCommerceTableHead"><span>مشتری</span><span>تلگرام</span><span>کیف پول</span><span>تاریخ عضویت</span><span>وضعیت</span></div>
               <div className="primeCommerceTableBody">
                 {customersPage.items.map((customer) => (
                   <div className="primeCommerceRow" key={customer.id}>
@@ -1988,7 +1988,7 @@ export default function PrimePanelV2({
 
           <div className="primePasarguardTable">
             <div className="primePasarguardTableHead">
-              <span>نام</span><span>آدرس</span><span>آخرین Sync</span><span>وضعیت</span>
+              <span>نام</span><span>آدرس</span><span>آخرین همگام‌سازی</span><span>وضعیت</span>
             </div>
             <div className="primePasarguardTableBody">
               {connections.map((connection) => (
@@ -2169,10 +2169,10 @@ export default function PrimePanelV2({
           <div className="primeThemeOptions">
             <button className={theme === "dark" ? "active" : ""} onClick={() => setTheme("dark")}><i className="dark" />تیره</button>
             <button className={theme === "light" ? "active" : ""} onClick={() => setTheme("light")}><i className="light" />روشن</button>
-            <button className={accent === "cyan" ? "active" : ""} onClick={() => setAccent("cyan")}><i className="cyan" />cyan</button>
-            <button className={accent === "violet" ? "active" : ""} onClick={() => setAccent("violet")}><i className="violet" />violet</button>
-            <button className={accent === "emerald" ? "active" : ""} onClick={() => setAccent("emerald")}><i className="emerald" />emerald</button>
-            <button className={accent === "orange" ? "active" : ""} onClick={() => setAccent("orange")}><i className="orange" />orange</button>
+            <button className={accent === "cyan" ? "active" : ""} onClick={() => setAccent("cyan")}><i className="cyan" />فیروزه‌ای</button>
+            <button className={accent === "violet" ? "active" : ""} onClick={() => setAccent("violet")}><i className="violet" />بنفش</button>
+            <button className={accent === "emerald" ? "active" : ""} onClick={() => setAccent("emerald")}><i className="emerald" />سبز</button>
+            <button className={accent === "orange" ? "active" : ""} onClick={() => setAccent("orange")}><i className="orange" />نارنجی</button>
           </div>
         </section>
 
@@ -2180,7 +2180,7 @@ export default function PrimePanelV2({
           <section className="primeSettingsCard primeSecuritySection">
             <div className="primeSettingsHead">
               <div className="primeSettingsIcon"><ShieldCheck size={25} /></div>
-              <div><strong>امنیت Owner</strong><span>مدیریت امنیت حساب و احراز هویت دو مرحله‌ای</span></div>
+              <div><strong>امنیت مالک</strong><span>مدیریت امنیت حساب و احراز هویت دو مرحله‌ای</span></div>
             </div>
             <div className="primeSecurityBody">
               <div>
@@ -2393,7 +2393,7 @@ export default function PrimePanelV2({
               <small className="primeFieldHint warn">برای این نماینده هنوز پلنی تخصیص داده نشده است.</small>
             )}
           </label>
-          <label>حجم GB<input type="number" step="0.1" value={clientForm.quota_gib} onChange={(e) => setClientForm({ ...clientForm, quota_gib: e.target.value })} required /></label>
+          <label>حجم (GB)<input type="number" step="0.1" value={clientForm.quota_gib} onChange={(e) => setClientForm({ ...clientForm, quota_gib: e.target.value })} required /></label>
           <label>مدت روز<input type="number" value={clientForm.duration_days} onChange={(e) => setClientForm({ ...clientForm, duration_days: e.target.value })} /></label>
           <label>تعداد دستگاه<input type="number" value={clientForm.hwid_limit} onChange={(e) => setClientForm({ ...clientForm, hwid_limit: e.target.value })} /></label>
           <button className="v2Primary" disabled={busy}>ساخت کلاینت</button>
@@ -2446,11 +2446,11 @@ export default function PrimePanelV2({
               options={groups.map((g) => ({ value: g.id, label: g.name }))}
             />
           </label>
-          <label>قیمت پایه هر GB<input type="number" value={planForm.base_price_per_gib_toman} onChange={(e) => setPlanForm({ ...planForm, base_price_per_gib_toman: e.target.value })} required /></label>
-          <label>حداقل GB<input type="number" value={planForm.min_quota_gib} onChange={(e) => setPlanForm({ ...planForm, min_quota_gib: e.target.value })} /></label>
-          <label>حداکثر GB<input type="number" value={planForm.max_quota_gib} onChange={(e) => setPlanForm({ ...planForm, max_quota_gib: e.target.value })} /></label>
+          <label>قیمت پایه هر گیگ<input type="number" value={planForm.base_price_per_gib_toman} onChange={(e) => setPlanForm({ ...planForm, base_price_per_gib_toman: e.target.value })} required /></label>
+          <label>حداقل حجم (GB)<input type="number" value={planForm.min_quota_gib} onChange={(e) => setPlanForm({ ...planForm, min_quota_gib: e.target.value })} /></label>
+          <label>حداکثر حجم (GB)<input type="number" value={planForm.max_quota_gib} onChange={(e) => setPlanForm({ ...planForm, max_quota_gib: e.target.value })} /></label>
           <label>حداکثر روز<input type="number" value={planForm.max_duration_days} onChange={(e) => setPlanForm({ ...planForm, max_duration_days: e.target.value })} /></label>
-          <label>HWID پیش‌فرض<input type="number" value={planForm.default_hwid_limit} onChange={(e) => setPlanForm({ ...planForm, default_hwid_limit: e.target.value })} /></label>
+          <label>حد پیش‌فرض دستگاه<input type="number" value={planForm.default_hwid_limit} onChange={(e) => setPlanForm({ ...planForm, default_hwid_limit: e.target.value })} /></label>
           <button className="v2Primary">ساخت پلن</button>
         </form>
       </Modal>
@@ -2552,7 +2552,7 @@ export default function PrimePanelV2({
             <button onClick={() => openBotEdit(selectedBot)}>نام و توکن</button>
             <button className="v2Danger" onClick={() => openConfirmAction({
               title: "خاموش‌کردن ربات",
-              description: `ربات «${selectedBot.name}» خاموش شود؟ اتصال Webhook آن نیز غیرفعال می‌شود.`,
+              description: `ربات «${selectedBot.name}» خاموش شود؟ اتصال وب‌هوک آن نیز غیرفعال می‌شود.`,
               submitLabel: "خاموش‌کردن ربات",
               successMessage: "ربات خاموش شد",
               action: () => authApi(`/api/v1/bots/${selectedBot.id}`, { method: "DELETE" }),
