@@ -434,3 +434,301 @@ async def assign_plan(
     item.enabled = True
     await db.commit()
     return {"ok": True}
+
+
+# ---- Client provisioning ----------------------------------------------------
+
+from datetime import datetime, timedelta, timezone
+
+from app.models import Client, ClientStatus, UsageCheckpoint
+
+
+class ClientCreateIn(BaseModel):
+    username: str = Field(min_length=3, max_length=32, pattern=r"^[A-Za-z0-9_]+$")
+    plan_id: uuid.UUID
+    quota_gib: Decimal = Field(gt=0)
+    duration_days: int | None = Field(default=None, ge=1, le=3650)
+    hwid_limit: int | None = Field(default=None, ge=1, le=100)
+    note: str | None = Field(default=None, max_length=500)
+    admin_id: uuid.UUID | None = None
+
+
+class ClientUpdateIn(BaseModel):
+    quota_gib: Decimal | None = Field(default=None, gt=0)
+    duration_days_from_now: int | None = Field(default=None, ge=1, le=3650)
+    hwid_limit: int | None = Field(default=None, ge=1, le=100)
+    disabled: bool | None = None
+    note: str | None = Field(default=None, max_length=500)
+
+
+async def _resolve_client_admin(
+    user: User,
+    requested_admin_id: uuid.UUID | None,
+    db: AsyncSession,
+) -> User:
+    if user.role == Role.ADMIN:
+        if requested_admin_id and requested_admin_id != user.id:
+            raise HTTPException(status_code=403, detail="cannot create clients for another admin")
+        return user
+    if not requested_admin_id:
+        raise HTTPException(status_code=400, detail="admin_id is required for owner-created clients")
+    admin = await db.scalar(
+        select(User).where(User.id == requested_admin_id, User.role == Role.ADMIN)
+    )
+    if not admin:
+        raise HTTPException(status_code=404, detail="admin not found")
+    return admin
+
+
+@app.get(f"{settings.api_prefix}/clients")
+async def list_clients(
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    stmt = select(Client).order_by(Client.created_at.desc())
+    if user.role == Role.ADMIN:
+        stmt = stmt.where(Client.admin_id == user.id)
+    rows = (await db.execute(stmt)).scalars()
+    return [{
+        "id": str(item.id),
+        "admin_id": str(item.admin_id),
+        "username": item.username,
+        "status": item.status.value,
+        "quota_bytes": item.quota_bytes,
+        "expires_at": item.expires_at,
+        "hwid_limit": item.hwid_limit,
+        "lifetime_usage_bytes": item.last_lifetime_usage_bytes,
+        "subscription_url": item.subscription_url,
+        "plan_id": str(item.plan_id) if item.plan_id else None,
+        "group_id": str(item.group_id),
+    } for item in rows]
+
+
+@app.post(f"{settings.api_prefix}/clients", status_code=201)
+async def create_client(
+    payload: ClientCreateIn,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    admin = await _resolve_client_admin(user, payload.admin_id, db)
+    plan = await db.scalar(select(Plan).where(Plan.id == payload.plan_id, Plan.enabled.is_(True)))
+    if not plan:
+        raise HTTPException(status_code=404, detail="plan not found")
+
+    allowed = await db.scalar(
+        select(AdminPlan).where(
+            AdminPlan.admin_id == admin.id,
+            AdminPlan.plan_id == plan.id,
+            AdminPlan.enabled.is_(True),
+        )
+    )
+    if not allowed:
+        raise HTTPException(status_code=403, detail="plan is not assigned to this admin")
+
+    if plan.min_quota_gib is not None and payload.quota_gib < plan.min_quota_gib:
+        raise HTTPException(status_code=400, detail="quota below plan minimum")
+    if plan.max_quota_gib is not None and payload.quota_gib > plan.max_quota_gib:
+        raise HTTPException(status_code=400, detail="quota above plan maximum")
+    if plan.max_duration_days is not None and payload.duration_days and payload.duration_days > plan.max_duration_days:
+        raise HTTPException(status_code=400, detail="duration above plan maximum")
+
+    wallet = await db.scalar(select(Wallet).where(Wallet.owner_user_id == admin.id))
+    if not wallet:
+        raise HTTPException(status_code=409, detail="admin wallet missing")
+    if wallet.block_new_clients_when_low and wallet.balance_toman <= wallet.low_balance_threshold_toman:
+        raise HTTPException(status_code=402, detail="admin wallet is below the client-creation threshold")
+
+    group = await db.scalar(select(PasarGuardGroup).where(PasarGuardGroup.id == plan.group_id))
+    if not group or not group.enabled_remote:
+        raise HTTPException(status_code=409, detail="PasarGuard group unavailable")
+    connection = await db.scalar(
+        select(PasarGuardConnection).where(
+            PasarGuardConnection.id == group.connection_id,
+            PasarGuardConnection.enabled.is_(True),
+        )
+    )
+    if not connection:
+        raise HTTPException(status_code=409, detail="PasarGuard connection unavailable")
+
+    if await db.scalar(
+        select(Client).where(
+            Client.connection_id == connection.id,
+            Client.username == payload.username,
+        )
+    ):
+        raise HTTPException(status_code=409, detail="client username already exists locally")
+
+    quota_bytes = int(payload.quota_gib * Decimal(1024**3))
+    expires_at = (
+        datetime.now(timezone.utc) + timedelta(days=payload.duration_days)
+        if payload.duration_days
+        else None
+    )
+    remote_payload = {
+        "username": payload.username,
+        "status": "active",
+        "expire": expires_at.isoformat() if expires_at else 0,
+        "data_limit": quota_bytes,
+        "data_limit_reset_strategy": "no_reset",
+        "group_ids": [group.remote_group_id],
+        "note": payload.note,
+        "hwid_limit": payload.hwid_limit or plan.default_hwid_limit,
+    }
+    remote_payload = {k: v for k, v in remote_payload.items() if v is not None}
+
+    pg = PasarGuardClient(connection.base_url, connection.encrypted_api_token)
+    try:
+        remote = await pg.create_user(remote_payload)
+    except PasarGuardError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    client = Client(
+        admin_id=admin.id,
+        connection_id=connection.id,
+        plan_id=plan.id,
+        group_id=group.id,
+        remote_user_id=int(remote["id"]),
+        username=remote["username"],
+        quota_bytes=remote.get("data_limit", quota_bytes),
+        expires_at=expires_at,
+        hwid_limit=remote.get("hwid_limit", remote_payload.get("hwid_limit")),
+        status=ClientStatus.ACTIVE,
+        subscription_url=remote.get("subscription_url"),
+        last_lifetime_usage_bytes=int(remote.get("lifetime_used_traffic") or 0),
+        remote_payload=remote,
+    )
+    db.add(client)
+    await db.flush()
+    db.add(
+        UsageCheckpoint(
+            client_id=client.id,
+            last_lifetime_usage_bytes=client.last_lifetime_usage_bytes,
+        )
+    )
+    await db.commit()
+    await db.refresh(client)
+    return {
+        "id": str(client.id),
+        "username": client.username,
+        "subscription_url": client.subscription_url,
+        "quota_bytes": client.quota_bytes,
+        "expires_at": client.expires_at,
+    }
+
+
+@app.patch(f"{settings.api_prefix}/clients/{{client_id}}")
+async def update_client(
+    client_id: uuid.UUID,
+    payload: ClientUpdateIn,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    client = await db.scalar(select(Client).where(Client.id == client_id))
+    if not client:
+        raise HTTPException(status_code=404, detail="client not found")
+    if user.role == Role.ADMIN and client.admin_id != user.id:
+        raise HTTPException(status_code=403, detail="client belongs to another admin")
+
+    connection = await db.scalar(
+        select(PasarGuardConnection).where(PasarGuardConnection.id == client.connection_id)
+    )
+    pg = PasarGuardClient(connection.base_url, connection.encrypted_api_token)
+
+    remote_update = {}
+    if payload.quota_gib is not None:
+        client.quota_bytes = int(payload.quota_gib * Decimal(1024**3))
+        remote_update["data_limit"] = client.quota_bytes
+    if payload.duration_days_from_now is not None:
+        client.expires_at = datetime.now(timezone.utc) + timedelta(days=payload.duration_days_from_now)
+        remote_update["expire"] = client.expires_at.isoformat()
+    if payload.hwid_limit is not None:
+        client.hwid_limit = payload.hwid_limit
+        remote_update["hwid_limit"] = payload.hwid_limit
+    if payload.note is not None:
+        remote_update["note"] = payload.note
+
+    try:
+        if remote_update:
+            remote = await pg.update_user(client.username, remote_update)
+            client.remote_payload = remote or client.remote_payload
+        if payload.disabled is not None:
+            remote = await pg.set_user_disabled(client.username, payload.disabled)
+            client.status = ClientStatus.DISABLED if payload.disabled else ClientStatus.ACTIVE
+            client.remote_payload = remote or client.remote_payload
+    except PasarGuardError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    await db.commit()
+    return {"ok": True}
+
+
+@app.post(f"{settings.api_prefix}/clients/{{client_id}}/reset-usage")
+async def reset_client_usage(
+    client_id: uuid.UUID,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    client = await db.scalar(select(Client).where(Client.id == client_id))
+    if not client:
+        raise HTTPException(status_code=404, detail="client not found")
+    if user.role == Role.ADMIN and client.admin_id != user.id:
+        raise HTTPException(status_code=403, detail="client belongs to another admin")
+    connection = await db.scalar(select(PasarGuardConnection).where(PasarGuardConnection.id == client.connection_id))
+    pg = PasarGuardClient(connection.base_url, connection.encrypted_api_token)
+    try:
+        remote = await pg.reset_user_usage(client.username)
+    except PasarGuardError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    client.remote_payload = remote or client.remote_payload
+    client.last_lifetime_usage_bytes = int((remote or {}).get("lifetime_used_traffic") or client.last_lifetime_usage_bytes)
+    await db.commit()
+    return {"ok": True, "lifetime_usage_bytes": client.last_lifetime_usage_bytes}
+
+
+@app.post(f"{settings.api_prefix}/clients/{{client_id}}/revoke-subscription")
+async def revoke_client_subscription(
+    client_id: uuid.UUID,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    client = await db.scalar(select(Client).where(Client.id == client_id))
+    if not client:
+        raise HTTPException(status_code=404, detail="client not found")
+    if user.role == Role.ADMIN and client.admin_id != user.id:
+        raise HTTPException(status_code=403, detail="client belongs to another admin")
+    connection = await db.scalar(select(PasarGuardConnection).where(PasarGuardConnection.id == client.connection_id))
+    pg = PasarGuardClient(connection.base_url, connection.encrypted_api_token)
+    try:
+        remote = await pg.revoke_subscription(client.username)
+    except PasarGuardError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    client.subscription_url = (remote or {}).get("subscription_url", client.subscription_url)
+    client.remote_payload = remote or client.remote_payload
+    await db.commit()
+    return {"ok": True, "subscription_url": client.subscription_url}
+
+
+@app.delete(f"{settings.api_prefix}/clients/{{client_id}}", status_code=204)
+async def delete_client(
+    client_id: uuid.UUID,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    client = await db.scalar(select(Client).where(Client.id == client_id))
+    if not client:
+        raise HTTPException(status_code=404, detail="client not found")
+    if user.role == Role.ADMIN and client.admin_id != user.id:
+        raise HTTPException(status_code=403, detail="client belongs to another admin")
+    connection = await db.scalar(select(PasarGuardConnection).where(PasarGuardConnection.id == client.connection_id))
+    pg = PasarGuardClient(connection.base_url, connection.encrypted_api_token)
+    try:
+        await pg.delete_user(client.username)
+    except PasarGuardError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    # Keep PRIMEVPN billing/audit history. The remote user is gone, so mark the
+    # local mirror disabled rather than deleting financial history.
+    client.status = ClientStatus.DISABLED
+    client.remote_payload = {**(client.remote_payload or {}), "deleted_remote": True}
+    await db.commit()
+    return None
