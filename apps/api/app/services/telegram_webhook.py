@@ -8,6 +8,8 @@ settings = get_settings()
 
 TELEGRAM_UPDATE_STREAM = "primevpn:telegram:updates"
 TELEGRAM_UPDATE_GROUP = "primevpn:telegram-workers"
+TELEGRAM_CONTROL_STREAM = "primevpn:telegram:control"
+TELEGRAM_CONTROL_GROUP = "primevpn:telegram-control-workers"
 TELEGRAM_DONE_TTL_SECONDS = 7 * 24 * 60 * 60
 TELEGRAM_PROCESSING_TTL_SECONDS = 120
 TELEGRAM_MAX_UPDATE_BYTES = 1_000_000
