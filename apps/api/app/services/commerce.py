@@ -17,6 +17,7 @@ from app.models import (
     PaymentProfile,
     PaymentStatus,
     Plan,
+    Role,
     User,
     Wallet,
     WalletTxnType,
@@ -241,7 +242,7 @@ async def create_admin_gateway_topup(
     admin: User,
     amount_toman: Decimal,
 ):
-    owner = await db.scalar(select(User).where(User.role == "owner"))
+    owner = await db.scalar(select(User).where(User.role == Role.OWNER))
     if not owner:
         raise ValueError("owner not found")
     payment = Payment(
@@ -362,3 +363,55 @@ async def verify_gateway_payment(
 
     await db.flush()
     return payment, client
+
+
+async def create_customer_card_topup(
+    db: AsyncSession,
+    *,
+    customer: Customer,
+    amount_toman: Decimal,
+) -> Payment:
+    profile = await db.scalar(
+        select(PaymentProfile).where(PaymentProfile.owner_user_id == customer.admin_id)
+    )
+    if not profile or not profile.card_to_card_enabled or not profile.card_number:
+        raise ValueError("admin card-to-card payment is not configured")
+    payment = Payment(
+        admin_id=customer.admin_id,
+        customer_id=customer.id,
+        order_id=None,
+        method=PaymentMethod.CARD_TO_CARD,
+        status=PaymentStatus.AWAITING_REVIEW,
+        amount_toman=money(amount_toman),
+        provider="card_to_card",
+        meta={"purpose": "customer_wallet_topup"},
+    )
+    db.add(payment)
+    await db.flush()
+    return payment
+
+
+async def create_customer_gateway_topup(
+    db: AsyncSession,
+    *,
+    customer: Customer,
+    amount_toman: Decimal,
+):
+    payment = Payment(
+        admin_id=customer.admin_id,
+        customer_id=customer.id,
+        order_id=None,
+        method=PaymentMethod.GATEWAY,
+        status=PaymentStatus.PENDING,
+        amount_toman=money(amount_toman),
+        meta={"purpose": "customer_wallet_topup_gateway"},
+    )
+    db.add(payment)
+    await db.flush()
+    result = await create_gateway_payment(
+        db,
+        payment=payment,
+        profile_owner_user_id=customer.admin_id,
+        description=f"PRIMEVPN customer wallet top-up {customer.id}",
+    )
+    return payment, result
