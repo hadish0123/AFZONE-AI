@@ -2,14 +2,17 @@
 
 import {
   Activity,
+  Bell,
   Bot,
   Boxes,
   Check,
+  Code2,
   ChevronLeft,
   ChevronRight,
   CircleDollarSign,
   Copy,
   CreditCard,
+  Database,
   Gauge,
   LayoutDashboard,
   LogOut,
@@ -18,11 +21,13 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Send,
   Server,
   Settings,
   ShieldCheck,
   SlidersHorizontal,
   Users,
+  Wallet,
   WalletCards,
   X,
 } from "lucide-react";
@@ -42,9 +47,12 @@ type Summary = {
   role: "owner" | "admin";
   admins: number | null;
   clients: number;
+  active_clients?: number;
   lifetime_usage_bytes: number;
   orders: number;
+  today_orders?: number;
   paid_volume_toman: string;
+  today_paid_toman?: string;
   wallet_balance_toman: string;
   pending_payments: number;
 };
@@ -530,6 +538,11 @@ export default function PrimePanelV2({
     if (data[0]) setSummary(data[0]);
     if (data[1]) setNotifications(data[1]);
     if (data[2]) setFinancial(data[2]);
+
+    if (user.role === "owner") {
+      const connectionRows = await safe(() => authApi<ConnectionRow[]>("/api/v1/connections"));
+      if (connectionRows) setConnections(connectionRows);
+    }
   }
 
   async function loadAdmins(page = adminsPage.page) {
@@ -869,86 +882,153 @@ export default function PrimePanelV2({
   }
 
   function renderDashboard() {
-    const cards = user.role === "owner"
-      ? [
-          ["نمایندگان", summary?.admins || 0, "حساب فعال و غیرفعال"],
-          ["کلاینت‌ها", summary?.clients || 0, "مقیاس‌پذیر با Pagination"],
-          ["مصرف Lifetime", gib(summary?.lifetime_usage_bytes), "Billing واقعی"],
-          ["پرداخت منتظر", summary?.pending_payments || 0, "نیازمند بررسی"],
-        ]
-      : [
-          ["کیف پول", money(summary?.wallet_balance_toman), "Ledger"],
-          ["کلاینت‌ها", summary?.clients || 0, "سرویس‌های من"],
-          ["مصرف Lifetime", gib(summary?.lifetime_usage_bytes), "Billing واقعی"],
-          ["سفارش‌ها", summary?.orders || 0, "فروش"],
-        ];
+    const pasarGuardOnline = user.role === "admin" || connections.some((item) => item.enabled && !item.last_error);
+
+    const metrics = [
+      {
+        label: "کاربران",
+        value: summary?.clients || 0,
+        note: "تعداد کل کاربران",
+        icon: Users,
+        tone: "violet",
+      },
+      {
+        label: "اشتراک‌های فعال",
+        value: summary?.active_clients || 0,
+        note: "کاربران فعال سرویس",
+        icon: ShieldCheck,
+        tone: "blue",
+      },
+      {
+        label: "مصرف Lifetime",
+        value: gib(summary?.lifetime_usage_bytes),
+        note: "مجموع ترافیک مصرفی",
+        icon: Database,
+        tone: "purple",
+      },
+      {
+        label: "پرداخت امروز",
+        value: money(summary?.today_paid_toman || 0),
+        note: "جمع پرداخت‌های امروز",
+        icon: Wallet,
+        tone: "cyan",
+      },
+    ];
+
+    const services = [
+      { label: "API", icon: Code2, ok: true },
+      { label: "Billing Worker", icon: Settings, ok: true },
+      { label: "Telegram Worker", icon: Send, ok: true },
+      { label: "PostgreSQL", icon: Database, ok: true },
+      { label: "Redis", icon: Boxes, ok: true },
+      { label: "PasarGuard", icon: ShieldCheck, ok: pasarGuardOnline },
+    ];
+
+    const financeCards = [
+      { label: "موجودی", value: money(summary?.wallet_balance_toman), icon: WalletCards, tone: "blue" },
+      { label: "فروش امروز", value: money(summary?.today_paid_toman || 0), icon: CircleDollarSign, tone: "violet" },
+      { label: "سفارشات جدید", value: summary?.today_orders || 0, icon: Boxes, tone: "cyan" },
+      { label: "هزینه مصرف", value: money(financial?.actual_usage_cost_toman), icon: Activity, tone: "purple" },
+    ];
 
     return (
-      <div className="v2Stack">
-        <section className="v2Metrics">
-          {cards.map(([label, value, note]) => (
-            <article className="v2Metric" key={String(label)}>
-              <span>{label}</span>
-              <strong>{String(value)}</strong>
-              <small>{note}</small>
-            </article>
-          ))}
+      <div className="primeDashboard">
+        <section className="primeDashMetrics">
+          {metrics.map((item) => {
+            const Icon = item.icon;
+            return (
+              <article className={`primeDashMetric ${item.tone}`} key={item.label}>
+                <div className="primeDashMetricIcon"><Icon size={25} /></div>
+                <div className="primeDashMetricBody">
+                  <span>{item.label}</span>
+                  <strong>{String(item.value)}</strong>
+                  <small>{item.note}</small>
+                </div>
+                <i className="primeDashWave" />
+              </article>
+            );
+          })}
         </section>
 
-        <section className="v2Grid">
-          <article className="v2Card">
-            <div className="v2CardHead">
-              <div><strong>مرکز عملیات</strong><span>وضعیت لحظه‌ای سرویس‌ها</span></div>
-              <span className="v2Live">LIVE</span>
+        <section className="primeDashPanel primeDashOps">
+          <div className="primeDashPanelHead">
+            <div className="primeDashTitleIcon violet"><Settings size={23} /></div>
+            <div>
+              <strong>مرکز عملیات</strong>
+              <span>پایش وضعیت سرویس‌ها و زیرساخت‌ها</span>
             </div>
-            {[
-              ["API", true],
-              ["Billing Worker", true],
-              ["Telegram Worker", true],
-              ["PostgreSQL", true],
-              ["Redis", true],
-              ["PasarGuard", user.role === "admin" || connections.some((x) => x.enabled)],
-            ].map(([name, ok]) => (
-              <div className="v2Status" key={String(name)}>
-                <span><i className={ok ? "ok" : "wait"} />{name}</span>
-                <b>{ok ? "آماده" : "منتظر اتصال"}</b>
-              </div>
-            ))}
-          </article>
+            <div className="primeDashLive"><i />LIVE</div>
+          </div>
 
-          <article className="v2Card">
-            <div className="v2CardHead">
-              <div><strong>خلاصه مالی</strong><span>فروش و هزینه مصرف واقعی</span></div>
-            </div>
-            <div className="v2Finance">
-              <div><span>فروش</span><strong>{money(financial?.sales_toman)}</strong></div>
-              <div><span>هزینه مصرف</span><strong>{money(financial?.actual_usage_cost_toman)}</strong></div>
-              <div><span>سود ناخالص</span><strong>{money(financial?.gross_margin_toman)}</strong></div>
-              <div><span>سفارش موفق</span><strong>{financial?.provisioned_orders || 0}</strong></div>
-            </div>
-          </article>
+          <div className="primeDashServiceList">
+            {services.map((service) => {
+              const Icon = service.icon;
+              return (
+                <div className="primeDashService" key={service.label}>
+                  <div className="primeDashServiceName"><Icon size={18} /><span>{service.label}</span></div>
+                  <div className={service.ok ? "primeDashState online" : "primeDashState warning"}>
+                    <i />{service.ok ? "آنلاین" : "هشدار"}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
 
-          <article className="v2Card v2Span2">
-            <div className="v2CardHead">
-              <div><strong>اعلان‌ها</strong><span>{unread.toLocaleString("fa-IR")} خوانده‌نشده</span></div>
+        <section className="primeDashPanel primeDashFinancePanel">
+          <div className="primeDashPanelHead">
+            <div className="primeDashTitleIcon violet"><WalletCards size={22} /></div>
+            <div>
+              <strong>خلاصه مالی</strong>
+              <span>نمای کلی وضعیت مالی و پرداخت‌ها</span>
             </div>
-            <div className="v2List">
-              {notifications.slice(0, 8).map((n) => (
+          </div>
+
+          <div className="primeDashFinanceGrid">
+            {financeCards.map((item) => {
+              const Icon = item.icon;
+              return (
+                <article className={`primeDashFinanceCard ${item.tone}`} key={item.label}>
+                  <div className="primeDashFinanceIcon"><Icon size={21} /></div>
+                  <div><span>{item.label}</span><strong>{String(item.value)}</strong></div>
+                  <i className="primeDashWave" />
+                </article>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="primeDashPanel primeDashNotice" id="prime-dashboard-notifications">
+          <div className="primeDashPanelHead">
+            <div className="primeDashTitleIcon violet"><Bell size={22} /></div>
+            <div>
+              <strong>اعلان‌ها</strong>
+              <span>جدیدترین اطلاعیه‌ها و وضعیت سیستم</span>
+            </div>
+          </div>
+
+          {notifications.length ? (
+            <div className="primeDashNoticeList">
+              {notifications.slice(0, 5).map((notification) => (
                 <button
-                  key={n.id}
-                  className="v2ListItem"
-                  onClick={() => !n.is_read && run(
-                    () => authApi(`/api/v1/notifications/${n.id}/read`, { method: "POST" }),
+                  key={notification.id}
+                  onClick={() => !notification.is_read && run(
+                    () => authApi(`/api/v1/notifications/${notification.id}/read`, { method: "POST" }),
                     "اعلان خوانده شد",
                   )}
                 >
-                  <div><strong>{n.title}</strong><span>{n.message}</span></div>
-                  <small>{n.is_read ? "خوانده‌شده" : "جدید"}</small>
+                  <Bell size={16} />
+                  <div><strong>{notification.title}</strong><span>{notification.message}</span></div>
+                  {!notification.is_read && <i />}
                 </button>
               ))}
-              {!notifications.length && <Empty text="اعلانی وجود ندارد." />}
             </div>
-          </article>
+          ) : (
+            <div className="primeDashEmptyNotice">
+              <span><Bell size={25} /></span>
+              <p>اعلان جدیدی ندارید</p>
+            </div>
+          )}
         </section>
       </div>
     );
@@ -1417,14 +1497,24 @@ export default function PrimePanelV2({
 
   return (
     <main className="v2App">
-      <header className="v2Topbar">
-        <div className="v2Brand">
-          <div className="v2BrandMark"><Gauge size={21} /></div>
+      <header className={section === "dashboard" ? "v2Topbar primeDashTopbar" : "v2Topbar"}>
+        <div className={section === "dashboard" ? "v2Brand primeDashBrand" : "v2Brand"}>
+          <div className="v2BrandMark">{section === "dashboard" ? <ShieldCheck size={22} /> : <Gauge size={21} />}</div>
           <div><strong>PRIMEVPN</strong><span>{user.role === "owner" ? "OWNER CONTROL" : "RESELLER PANEL"}</span></div>
         </div>
-        <div className="v2TopActions">
-          <button title="بروزرسانی" onClick={reloadSection}><RefreshCw size={18} /></button>
+        <div className={section === "dashboard" ? "v2TopActions primeDashTopActions" : "v2TopActions"}>
           <button className="v2MenuButton" title="منو" onClick={() => setDrawer(true)}><MoreVertical size={23} /></button>
+          <button title="بروزرسانی" onClick={reloadSection}><RefreshCw size={18} /></button>
+          {section === "dashboard" && (
+            <button
+              title="اعلان‌ها"
+              className="primeDashBell"
+              onClick={() => document.getElementById("prime-dashboard-notifications")?.scrollIntoView({ behavior: "smooth", block: "center" })}
+            >
+              <Bell size={19} />
+              {unread > 0 && <i>{unread}</i>}
+            </button>
+          )}
         </div>
       </header>
 
@@ -1460,11 +1550,11 @@ export default function PrimePanelV2({
       )}
 
       <section className="v2Content">
-        <div className="v2PageHead">
+        <div className={section === "dashboard" ? "v2PageHead primeDashPageHead" : "v2PageHead"}>
           <div>
             <span className="v2Eyebrow">PRIME NETWORK · PRODUCTION</span>
             <h1>{activeNav.label}</h1>
-            <p>{user.role === "owner" ? "مرکز مدیریت مرکزی" : "پنل مستقل نماینده"}</p>
+            <p>{section === "dashboard" ? (user.role === "owner" ? "مرکز مدیریت مرکزی" : "مرکز مدیریت نماینده") : (user.role === "owner" ? "مرکز مدیریت مرکزی" : "پنل مستقل نماینده")}</p>
           </div>
           {canCreate && (
             <button className="v2Create" onClick={contextualCreate}><Plus size={19} /><span>افزودن</span></button>
