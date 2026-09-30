@@ -2721,6 +2721,7 @@ def _page_meta(total: int, page: int, page_size: int) -> dict:
 async def directory_admins(
     q: str = "",
     status_filter: AccountStatus | None = None,
+    sort: str = "newest",
     page: int = 1,
     page_size: int = 25,
     _: User = Depends(require_owner),
@@ -2738,10 +2739,12 @@ async def directory_admins(
     if status_filter is not None:
         stmt = stmt.where(User.status == status_filter)
         count_stmt = count_stmt.where(User.status == status_filter)
+
+    order_by = User.created_at.asc() if sort == "oldest" else User.created_at.desc()
     total = int(await db.scalar(count_stmt) or 0)
     rows = (
         await db.execute(
-            stmt.order_by(User.created_at.desc())
+            stmt.order_by(order_by)
             .offset((page - 1) * page_size)
             .limit(page_size)
         )
@@ -2751,6 +2754,14 @@ async def directory_admins(
         wallet = await db.scalar(select(Wallet).where(Wallet.owner_user_id == admin.id))
         client_count = int(
             await db.scalar(select(func.count(Client.id)).where(Client.admin_id == admin.id)) or 0
+        )
+        plan_count = int(
+            await db.scalar(
+                select(func.count(AdminPlan.id)).where(
+                    AdminPlan.admin_id == admin.id,
+                    AdminPlan.enabled.is_(True),
+                )
+            ) or 0
         )
         items.append({
             "id": str(admin.id),
@@ -2762,6 +2773,7 @@ async def directory_admins(
             "low_balance_threshold_toman": str(wallet.low_balance_threshold_toman if wallet else 0),
             "debt_limit_toman": str(wallet.debt_limit_toman if wallet else 0),
             "client_count": client_count,
+            "plan_count": plan_count,
             "created_at": admin.created_at,
         })
     return {"items": items, **_page_meta(total, page, page_size)}
