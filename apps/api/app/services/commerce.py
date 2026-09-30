@@ -9,6 +9,7 @@ from app.core.config import get_settings
 from app.core.security import decrypt_secret
 from app.models import (
     AdminPlan,
+    BankCard,
     Customer,
     Order,
     OrderStatus,
@@ -152,11 +153,26 @@ async def pay_order_from_customer_wallet(db: AsyncSession, order: Order):
     return payment, client
 
 
-async def create_card_order_payment(db: AsyncSession, order: Order) -> Payment:
-    profile = await db.scalar(
-        select(PaymentProfile).where(PaymentProfile.owner_user_id == order.admin_id)
+async def default_bank_card(db: AsyncSession, owner_user_id: uuid.UUID) -> BankCard | None:
+    card = await db.scalar(
+        select(BankCard).where(
+            BankCard.owner_user_id == owner_user_id,
+            BankCard.enabled.is_(True),
+            BankCard.is_default.is_(True),
+        )
     )
-    if not profile or not profile.card_to_card_enabled or not profile.card_number:
+    if card:
+        return card
+    return await db.scalar(
+        select(BankCard)
+        .where(BankCard.owner_user_id == owner_user_id, BankCard.enabled.is_(True))
+        .order_by(BankCard.created_at.asc())
+    )
+
+
+async def create_card_order_payment(db: AsyncSession, order: Order) -> Payment:
+    card = await default_bank_card(db, order.admin_id)
+    if not card:
         raise ValueError("admin card-to-card payment is not configured")
 
     payment = Payment(
@@ -371,10 +387,8 @@ async def create_customer_card_topup(
     customer: Customer,
     amount_toman: Decimal,
 ) -> Payment:
-    profile = await db.scalar(
-        select(PaymentProfile).where(PaymentProfile.owner_user_id == customer.admin_id)
-    )
-    if not profile or not profile.card_to_card_enabled or not profile.card_number:
+    card = await default_bank_card(db, customer.admin_id)
+    if not card:
         raise ValueError("admin card-to-card payment is not configured")
     payment = Payment(
         admin_id=customer.admin_id,
