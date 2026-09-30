@@ -37,6 +37,8 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
     const responseHeaders = new Headers();
     const contentType = response.headers.get("content-type");
     if (contentType) responseHeaders.set("content-type", contentType);
+    const location = response.headers.get("location");
+    if (location) responseHeaders.set("location", location);
     responseHeaders.set("cache-control", "no-store");
 
     return new NextResponse(await response.arrayBuffer(), {
