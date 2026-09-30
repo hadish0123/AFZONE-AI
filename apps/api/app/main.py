@@ -92,7 +92,19 @@ async def ensure_owner() -> None:
             db.add(owner)
             await db.flush()
             db.add(Wallet(owner_user_id=owner.id))
-            await db.commit()
+        else:
+            # Railway OWNER_USERNAME / OWNER_PASSWORD are the bootstrap recovery
+            # source for the single Owner account. This lets the human owner
+            # rotate the bootstrap credential without ever sharing it in chat.
+            if owner.username != settings.owner_username:
+                owner.username = settings.owner_username
+            if not verify_password(owner.password_hash, settings.owner_password):
+                owner.password_hash = hash_password(settings.owner_password)
+            owner.status = AccountStatus.ACTIVE
+            wallet = await db.scalar(select(Wallet).where(Wallet.owner_user_id == owner.id))
+            if wallet is None:
+                db.add(Wallet(owner_user_id=owner.id))
+        await db.commit()
 
 
 @asynccontextmanager
