@@ -39,7 +39,6 @@ from app.models import (
     Plan,
     Role,
     TelegramBot,
-    TelegramBotPlan,
     User,
     Wallet,
 )
