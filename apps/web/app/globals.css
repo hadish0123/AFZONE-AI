@@ -41,3 +41,7 @@ html[data-theme="light"] .v2App{background:radial-gradient(circle at 84% 4%,rgba
 .v2PickerSearch{display:flex;gap:6px}.v2PickerSearch input{flex:1}.v2PickerSearch button{white-space:nowrap}
 .v2AssignBox{display:grid;gap:9px;padding:13px;border:1px solid rgba(35,213,255,.11);background:rgba(35,213,255,.035);border-radius:14px}.v2AssignBox>strong{font-size:10px}.v2AssignBox select,.v2AssignBox input{border:1px solid rgba(255,255,255,.075);background:#081520;color:#e8f4fb;border-radius:10px;padding:10px;font:inherit}
 html[data-theme="light"] .v2Picker,html[data-theme="light"] .v2AssignBox{background:#f8fbfc;border-color:rgba(30,60,80,.1)}html[data-theme="light"] .v2AssignBox select,html[data-theme="light"] .v2AssignBox input{background:#fff;color:#173043;border-color:rgba(30,60,80,.12)}
+
+.v2CatalogRow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px;border:1px solid rgba(255,255,255,.06);border-radius:12px;background:rgba(255,255,255,.018)}
+.v2CatalogRow strong{display:block;font-size:9px}.v2CatalogRow span{display:block;color:#6f879a;font-size:8px;margin-top:4px}.v2CatalogRow button{border:1px solid rgba(255,91,124,.15);background:rgba(255,91,124,.05);color:#ff9db0;border-radius:9px;padding:7px 9px;font-size:8px}
+html[data-theme="light"] .v2CatalogRow{background:#fff;border-color:rgba(30,60,80,.1)}
