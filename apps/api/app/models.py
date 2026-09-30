@@ -107,7 +107,7 @@ class Wallet(Base):
     balance_toman: Mapped[Decimal] = mapped_column(Numeric(20, 4), default=Decimal("0"))
     debt_limit_toman: Mapped[Decimal] = mapped_column(Numeric(20, 4), default=Decimal("0"))
     low_balance_threshold_toman: Mapped[Decimal] = mapped_column(
-        Numeric(20, 4), default=Decimal("50000")
+        Numeric(20, 4), default=Decimal("0")
     )
     block_new_clients_when_low: Mapped[bool] = mapped_column(Boolean, default=True)
     block_renewals_when_low: Mapped[bool] = mapped_column(Boolean, default=True)
