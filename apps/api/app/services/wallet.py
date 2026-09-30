@@ -1,0 +1,60 @@
+import uuid
+from decimal import Decimal
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models import Wallet, WalletTransaction, WalletTxnType
+
+
+class InsufficientFundsError(RuntimeError):
+    pass
+
+
+async def apply_wallet_transaction(
+    db: AsyncSession,
+    *,
+    wallet_id: uuid.UUID,
+    txn_type: WalletTxnType,
+    amount_toman: Decimal,
+    idempotency_key: str,
+    actor_user_id: uuid.UUID | None = None,
+    reference_type: str | None = None,
+    reference_id: str | None = None,
+    description: str | None = None,
+    meta: dict | None = None,
+) -> WalletTransaction:
+    existing = await db.scalar(
+        select(WalletTransaction).where(
+            WalletTransaction.idempotency_key == idempotency_key
+        )
+    )
+    if existing:
+        return existing
+
+    wallet = await db.scalar(
+        select(Wallet).where(Wallet.id == wallet_id).with_for_update()
+    )
+    if not wallet:
+        raise ValueError("wallet not found")
+
+    new_balance = Decimal(wallet.balance_toman) + Decimal(amount_toman)
+    if new_balance < -Decimal(wallet.debt_limit_toman):
+        raise InsufficientFundsError("wallet debt limit exceeded")
+
+    wallet.balance_toman = new_balance
+    txn = WalletTransaction(
+        wallet_id=wallet.id,
+        txn_type=txn_type,
+        amount_toman=amount_toman,
+        balance_after_toman=new_balance,
+        idempotency_key=idempotency_key,
+        actor_user_id=actor_user_id,
+        reference_type=reference_type,
+        reference_id=reference_id,
+        description=description,
+        meta=meta or {},
+    )
+    db.add(txn)
+    await db.flush()
+    return txn
