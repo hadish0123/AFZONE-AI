@@ -2918,8 +2918,10 @@ async def directory_orders(
 
 @app.get(f"{settings.api_prefix}/directory/payments")
 async def directory_payments(
+    q: str = "",
     status_filter: PaymentStatus | None = None,
     method: PaymentMethod | None = None,
+    date_filter: str = "",
     admin_id: uuid.UUID | None = None,
     page: int = 1,
     page_size: int = 25,
@@ -2937,6 +2939,17 @@ async def directory_payments(
         filters.append(Payment.status == status_filter)
     if method:
         filters.append(Payment.method == method)
+    if date_filter == "today":
+        filters.append(func.date(Payment.created_at) == datetime.now(timezone.utc).date())
+    if q.strip():
+        term = f"%{q.strip()}%"
+        filters.append(
+            or_(
+                Payment.provider.ilike(term),
+                Payment.provider_reference.ilike(term),
+            )
+        )
+
     stmt = select(Payment).where(*filters)
     total = int(await db.scalar(select(func.count(Payment.id)).where(*filters)) or 0)
     rows = (
@@ -2946,11 +2959,30 @@ async def directory_payments(
             .limit(page_size)
         )
     ).scalars().all()
+
+    admin_ids = {row.admin_id for row in rows}
+    customer_ids = {row.customer_id for row in rows if row.customer_id}
+    admins_map = {}
+    customers_map = {}
+    if admin_ids:
+        admin_rows = (await db.execute(select(User).where(User.id.in_(admin_ids)))).scalars().all()
+        admins_map = {item.id: item.username for item in admin_rows}
+    if customer_ids:
+        customer_rows = (
+            await db.execute(select(Customer).where(Customer.id.in_(customer_ids)))
+        ).scalars().all()
+        customers_map = {
+            item.id: item.display_name or item.username or str(item.telegram_user_id or "")
+            for item in customer_rows
+        }
+
     return {
         "items": [{
             "id": str(item.id),
             "admin_id": str(item.admin_id),
+            "admin_username": admins_map.get(item.admin_id),
             "customer_id": str(item.customer_id) if item.customer_id else None,
+            "customer_name": customers_map.get(item.customer_id) if item.customer_id else None,
             "order_id": str(item.order_id) if item.order_id else None,
             "method": item.method.value,
             "status": item.status.value,
