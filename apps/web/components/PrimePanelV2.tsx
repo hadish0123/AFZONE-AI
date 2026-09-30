@@ -2485,7 +2485,10 @@ export default function PrimePanelV2({
               options={groups.map((g) => ({ value: g.id, label: g.name }))}
             />
           </label>
-          <label>قیمت پایه هر گیگ<input type="number" value={planForm.base_price_per_gib_toman} onChange={(e) => setPlanForm({ ...planForm, base_price_per_gib_toman: e.target.value })} required /></label>
+          <label>قیمت پایه هر GB (تومان)
+            <input inputMode="decimal" type="text" placeholder="مثلاً 400" value={planForm.base_price_per_gib_toman} onChange={(e) => setPlanForm({ ...planForm, base_price_per_gib_toman: e.target.value })} required />
+            <small className="primeFieldHint">مبلغ دقیق به تومان؛ 400 یعنی 400 تومان، نه 400 هزار تومان.</small>
+          </label>
           <label>حداقل حجم (GB)<input type="number" value={planForm.min_quota_gib} onChange={(e) => setPlanForm({ ...planForm, min_quota_gib: e.target.value })} /></label>
           <label>حداکثر حجم (GB)<input type="number" value={planForm.max_quota_gib} onChange={(e) => setPlanForm({ ...planForm, max_quota_gib: e.target.value })} /></label>
           <label>حداکثر روز<input type="number" value={planForm.max_duration_days} onChange={(e) => setPlanForm({ ...planForm, max_duration_days: e.target.value })} /></label>
@@ -2503,13 +2506,30 @@ export default function PrimePanelV2({
           </div>
           {user.role === "owner" ? <>
             <button onClick={() => openOwnerPlanEdit(selectedPlan)}>ویرایش پلن</button>
-            <button className="v2Danger" onClick={() => openConfirmAction({
-              title: "خاموش‌کردن پلن",
-              description: `پلن «${selectedPlan.name}» برای همه نمایندگان و ربات‌ها خاموش شود؟`,
-              submitLabel: "خاموش‌کردن پلن",
-              successMessage: "پلن خاموش شد",
-              action: () => authApi(`/api/v1/plans/${selectedPlan.id}`, { method: "DELETE" }),
-            })}>خاموش‌کردن پلن</button>
+            {selectedPlan.enabled === false ? (
+              <button onClick={() => run(
+                () => authApi(`/api/v1/plans/${selectedPlan.id}`, {
+                  method: "PATCH",
+                  body: JSON.stringify({ enabled: true }),
+                }),
+                "پلن برای همه نمایندگان و ربات‌ها فعال شد"
+              )}>فعال‌کردن پلن</button>
+            ) : (
+              <button className="v2Danger" onClick={() => openConfirmAction({
+                title: "خاموش‌کردن پلن",
+                description: `پلن «${selectedPlan.name}» برای همه نمایندگان و ربات‌ها خاموش شود؟ اطلاعات و سابقه پلن حفظ می‌شود.`,
+                submitLabel: "خاموش‌کردن پلن",
+                successMessage: "پلن خاموش شد",
+                action: () => authApi(`/api/v1/plans/${selectedPlan.id}`, { method: "DELETE" }),
+              })}>خاموش‌کردن پلن</button>
+            )}
+            <button className="v2Danger primePlanDelete" onClick={() => openConfirmAction({
+              title: "حذف پلن",
+              description: `پلن «${selectedPlan.name}» حذف شود؟ اگر سابقه کلاینت یا سفارش داشته باشد، برای حفظ گزارش‌ها سیستم اجازه حذف کامل نمی‌دهد و باید فقط خاموش شود.`,
+              submitLabel: "حذف پلن",
+              successMessage: "پلن حذف شد",
+              action: () => authApi(`/api/v1/plans/${selectedPlan.id}/hard`, { method: "DELETE" }),
+            })}>حذف پلن</button>
           </> : <button onClick={() => openRetailPlanEdit(selectedPlan)}>تغییر قیمت فروش</button>}
         </div>}
       </Modal>
