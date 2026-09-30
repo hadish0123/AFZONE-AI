@@ -157,3 +157,33 @@ export async function logout() {
   }
   clearSession();
 }
+
+
+export async function authBlob(path: string): Promise<Blob> {
+  async function run(token: string) {
+    const response = await fetch(`${API_URL}${path}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    if (response.status === 401) throw new ApiError(401, "unauthorized");
+    if (!response.ok) {
+      let detail = `HTTP ${response.status}`;
+      try {
+        const body = await response.json();
+        detail = body.detail || detail;
+      } catch {}
+      throw new ApiError(response.status, detail);
+    }
+    return response.blob();
+  }
+
+  const session = storedSession();
+  if (!session) throw new ApiError(401, "session_expired");
+  try {
+    return await run(session.accessToken);
+  } catch (error) {
+    if (!(error instanceof ApiError) || error.status !== 401) throw error;
+    const access = await refreshSession();
+    return run(access);
+  }
+}
