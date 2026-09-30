@@ -1,9 +1,0 @@
-{
-  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
-  "mcpServers": {
-    "afzone-pasarguard": {
-      "type": "streamable-http",
-      "url": "https://REPLACE_WITH_RAILWAY_DOMAIN/mcp"
-    }
-  }
-}
