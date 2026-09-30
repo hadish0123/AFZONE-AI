@@ -1601,25 +1601,6 @@ async def create_telegram_bot(
     db.add(row)
     await db.flush()
 
-    assigned_plans = (
-        await db.execute(
-            select(AdminPlan).where(
-                AdminPlan.admin_id == admin.id,
-                AdminPlan.enabled.is_(True),
-                AdminPlan.bot_visible.is_(True),
-            )
-        )
-    ).scalars().all()
-    for index, assignment in enumerate(assigned_plans):
-        db.add(
-            TelegramBotPlan(
-                bot_id=row.id,
-                plan_id=assignment.plan_id,
-                enabled=True,
-                sort_order=index,
-            )
-        )
-
     await write_audit(
         db,
         actor_user_id=user.id,
@@ -3343,14 +3324,16 @@ async def get_bot_catalog(
 
     rows = (
         await db.execute(
-            select(AdminPlan, Plan, TelegramBotPlan)
-            .join(Plan, Plan.id == AdminPlan.plan_id)
+            select(Plan, AdminPlan)
             .outerjoin(
-                TelegramBotPlan,
-                (TelegramBotPlan.bot_id == bot.id)
-                & (TelegramBotPlan.plan_id == Plan.id),
+                AdminPlan,
+                and_(
+                    AdminPlan.plan_id == Plan.id,
+                    AdminPlan.admin_id == bot.admin_id,
+                    AdminPlan.enabled.is_(True),
+                ),
             )
-            .where(AdminPlan.admin_id == bot.admin_id, AdminPlan.enabled.is_(True))
+            .where(Plan.enabled.is_(True))
             .order_by(Plan.name)
         )
     ).all()
@@ -3358,10 +3341,15 @@ async def get_bot_catalog(
         "plan_id": str(plan.id),
         "name": plan.name,
         "base_price_per_gib_toman": str(plan.base_price_per_gib_toman),
-        "retail_price_per_gib_toman": str(assignment.retail_price_per_gib_toman),
-        "enabled_in_bot": bool(bot_plan and bot_plan.enabled),
-        "sort_order": bot_plan.sort_order if bot_plan else 0,
-    } for assignment, plan, bot_plan in rows]
+        "retail_price_per_gib_toman": str(
+            assignment.retail_price_per_gib_toman
+            if assignment
+            else plan.base_price_per_gib_toman
+        ),
+        "enabled_in_bot": True,
+        "sort_order": index,
+        "automatic": True,
+    } for index, (plan, assignment) in enumerate(rows)]
 
 
 class BotCatalogIn(BaseModel):
@@ -3381,37 +3369,20 @@ async def update_bot_catalog(
     if user.role == Role.ADMIN and bot.admin_id != user.id:
         raise HTTPException(status_code=403, detail="bot belongs to another admin")
 
-    allowed = set(
-        (
-            await db.execute(
-                select(AdminPlan.plan_id).where(
-                    AdminPlan.admin_id == bot.admin_id,
-                    AdminPlan.enabled.is_(True),
-                )
-            )
-        ).scalars().all()
+    # Catalog membership is intentionally global and automatic. Keep this
+    # endpoint as a compatibility no-op for older cached web clients.
+    total = int(
+        await db.scalar(
+            select(func.count(Plan.id)).where(Plan.enabled.is_(True))
+        ) or 0
     )
-    requested = set(payload.plan_ids)
-    if not requested.issubset(allowed):
-        raise HTTPException(status_code=403, detail="catalog contains an unassigned plan")
+    return {
+        "ok": True,
+        "automatic": True,
+        "enabled_plans": total,
+        "message": "active Owner plans are automatically visible in every sales bot",
+    }
 
-    existing = (
-        await db.execute(select(TelegramBotPlan).where(TelegramBotPlan.bot_id == bot.id))
-    ).scalars().all()
-    by_plan = {row.plan_id: row for row in existing}
-    for index, plan_id in enumerate(payload.plan_ids):
-        row = by_plan.get(plan_id)
-        if row is None:
-            row = TelegramBotPlan(bot_id=bot.id, plan_id=plan_id)
-            db.add(row)
-        row.enabled = True
-        row.sort_order = index
-    for plan_id, row in by_plan.items():
-        if plan_id not in requested:
-            row.enabled = False
-
-    await db.commit()
-    return {"ok": True, "enabled_plans": len(payload.plan_ids)}
 
 # ---- Production management completion --------------------------------------
 
