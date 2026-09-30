@@ -33,6 +33,8 @@ from app.models import (
     PasarGuardConnection,
     PasarGuardGroup,
     Plan,
+    Order,
+    OrderStatus,
     Role,
     User,
     Wallet,
