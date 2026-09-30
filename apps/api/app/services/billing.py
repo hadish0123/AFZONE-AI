@@ -22,6 +22,18 @@ class BillingAnomaly(RuntimeError):
     pass
 
 
+def calculate_usage_cost_toman(
+    delta_bytes: int,
+    price_per_gib_toman: Decimal,
+) -> Decimal:
+    if delta_bytes < 0:
+        raise ValueError("usage delta cannot be negative")
+    price = Decimal(price_per_gib_toman)
+    if price <= 0:
+        raise ValueError("usage price must be positive")
+    return (Decimal(delta_bytes) / Decimal(settings.billing_gib_bytes)) * price
+
+
 async def bill_lifetime_usage(
     db: AsyncSession,
     *,
@@ -68,14 +80,15 @@ async def bill_lifetime_usage(
         raise ValueError("admin wallet not found")
 
     price = Decimal(plan.base_price_per_gib_toman)
-    amount = (Decimal(delta) / Decimal(settings.billing_gib_bytes)) * price
+    amount = calculate_usage_cost_toman(delta, price)
+    wallet_debit = -amount
     idempotency_key = f"usage:{client.id}:{previous}:{current_lifetime_usage_bytes}"
 
     txn = await apply_wallet_transaction(
         db,
         wallet_id=wallet.id,
         txn_type=WalletTxnType.USAGE_CHARGE,
-        amount_toman=-amount,
+        amount_toman=wallet_debit,
         idempotency_key=idempotency_key,
         reference_type="client",
         reference_id=str(client.id),
