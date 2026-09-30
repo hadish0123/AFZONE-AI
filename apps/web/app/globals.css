@@ -2416,3 +2416,699 @@ body:has(.primeLoginPage){padding-bottom:0!important;background:#031329!importan
   .primeCreateForm select{min-height:54px}
   .primeCreateForm>.v2Primary{min-height:60px;font-size:15px!important}
 }
+
+
+/* PRIMEVPN plans, wallet, commerce reference screens */
+.v2App:has(.primePlansPage),
+.v2App:has(.primeWalletPage),
+.v2App:has(.primeCommercePage){
+  min-height:100svh;
+  background:
+    linear-gradient(rgba(22,105,201,.10) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(22,105,201,.10) 1px,transparent 1px),
+    radial-gradient(circle at 80% -4%,rgba(21,199,255,.18),transparent 24%),
+    radial-gradient(circle at 0% 37%,rgba(72,44,255,.13),transparent 34%),
+    linear-gradient(155deg,#061a3e 0%,#03162e 50%,#05152e 100%);
+  background-size:58px 58px,58px 58px,auto,auto,auto;
+}
+.v2Content:has(.primePlansPage),
+.v2Content:has(.primeWalletPage),
+.v2Content:has(.primeCommercePage){
+  position:relative;
+  z-index:2;
+  width:min(810px,calc(100% - 34px));
+  padding-top:4px;
+}
+.primePlanPageHead,
+.primeWalletPageHead,
+.primeCommercePageHead{
+  margin:0 0 20px;
+  align-items:end;
+}
+.primePlanPageHead>div:first-child,
+.primeWalletPageHead>div:first-child,
+.primeCommercePageHead>div:first-child{
+  margin-right:auto;
+  text-align:right;
+}
+.primePlanPageHead .v2Eyebrow,
+.primeWalletPageHead .v2Eyebrow,
+.primeCommercePageHead .v2Eyebrow{
+  display:block;
+  font:500 11px/1 Arial,sans-serif;
+  letter-spacing:4px;
+  color:#25dcff;
+  margin-bottom:13px;
+}
+.primePlanPageHead h1,
+.primeWalletPageHead h1,
+.primeCommercePageHead h1{
+  margin:0 0 8px;
+  color:#fff;
+  font-size:43px;
+  line-height:1.2;
+  font-weight:900;
+}
+.primePlanPageHead p,
+.primeWalletPageHead p,
+.primeCommercePageHead p{
+  color:#8294bd;
+  font-size:16px;
+}
+.primePlanPageHead .v2Create{
+  order:-1;
+  min-width:220px;
+  height:82px;
+  border-radius:18px;
+  border:1px solid rgba(255,209,91,.72);
+  color:#171108;
+  font-size:21px;
+  font-weight:900;
+  background:
+    radial-gradient(circle at 20% 25%,rgba(255,239,87,.66),transparent 34%),
+    radial-gradient(circle at 82% 74%,rgba(255,61,100,.34),transparent 40%),
+    linear-gradient(105deg,#ffd33d 0%,#ff9e39 45%,#ff5a66 100%);
+  box-shadow:0 0 24px rgba(255,159,51,.38),0 0 34px rgba(255,78,100,.14),inset 0 0 16px rgba(255,255,255,.18);
+}
+.primePlanPageHead .v2Create svg{width:27px;height:27px;stroke-width:3}
+
+/* Plans */
+.primePlansPage{
+  display:grid;
+  gap:18px;
+  direction:rtl;
+}
+.primePlanSection,
+.primePlanInfo{
+  position:relative;
+  overflow:hidden;
+  border-radius:24px;
+  border:1px solid rgba(57,82,255,.78);
+  background:
+    linear-gradient(rgba(27,104,201,.045) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(27,104,201,.045) 1px,transparent 1px),
+    radial-gradient(circle at 93% 7%,rgba(102,45,255,.12),transparent 26%),
+    linear-gradient(155deg,rgba(7,34,73,.97),rgba(5,25,57,.985));
+  background-size:38px 38px,38px 38px,auto,auto;
+  box-shadow:0 0 25px rgba(34,134,255,.20),0 0 26px rgba(104,45,255,.13);
+}
+.primePlanSection:before,
+.primePlanInfo:before{
+  content:"";
+  position:absolute;
+  inset:-1px;
+  border-radius:inherit;
+  padding:1px;
+  pointer-events:none;
+  background:linear-gradient(95deg,#24ddff,#2e62ff 48%,#7f37ff);
+  -webkit-mask:linear-gradient(#000 0 0) padding-box,linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;
+  mask-composite:exclude;
+  opacity:.86;
+}
+.primePlanSectionHead{
+  position:relative;
+  z-index:2;
+  display:grid;
+  grid-template-columns:62px 1fr;
+  align-items:center;
+  gap:13px;
+  padding:22px 24px 14px;
+}
+.primePlanSectionIcon{
+  width:58px;height:58px;
+  display:grid;place-items:center;
+  border-radius:16px;
+  color:#cb72ff;
+  background:linear-gradient(145deg,rgba(58,29,178,.72),rgba(63,21,150,.68));
+  border:1px solid rgba(124,59,255,.55);
+  box-shadow:0 0 17px rgba(102,51,255,.22);
+}
+.primePlanSectionIcon.purple{color:#b477ff}
+.primePlanSectionIcon.pink{color:#cf77ff}
+.primePlanSectionHead strong{
+  display:block;
+  color:#fff;
+  font-size:24px;
+  margin-bottom:7px;
+}
+.primePlanSectionHead span{
+  color:#8496ba;
+  font-size:11px;
+  line-height:1.8;
+}
+.primePlanCards{
+  position:relative;
+  z-index:2;
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:11px;
+  padding:8px 18px 20px;
+}
+.primePlanCard{
+  min-height:130px;
+  padding:16px;
+  border-radius:17px;
+  text-align:right;
+  color:#dce7f8;
+  border:1px solid rgba(52,109,255,.55);
+  background:
+    radial-gradient(circle at 85% 15%,rgba(101,43,255,.13),transparent 38%),
+    linear-gradient(145deg,rgba(6,33,72,.95),rgba(5,27,60,.97));
+  box-shadow:0 0 14px rgba(58,79,255,.10);
+}
+.primePlanCard>div{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.primePlanCard strong{font-size:15px;color:#fff}
+.primePlanCard>div>span{
+  padding:5px 8px;border-radius:99px;font-size:8px;
+}
+.primePlanCard>div>span.on{color:#61e6b2;background:rgba(52,220,157,.06);border:1px solid rgba(52,220,157,.18)}
+.primePlanCard>div>span.off{color:#ff9db1;background:rgba(255,84,118,.05);border:1px solid rgba(255,84,118,.16)}
+.primePlanCard b{display:block;margin-top:18px;font-size:18px;color:#d7e7ff}
+.primePlanCard small{display:block;margin-top:8px;font-size:9px;color:#7387aa}
+.primePlanEmpty{
+  position:relative;
+  z-index:2;
+  min-height:310px;
+  margin:0 14px 16px;
+  border-radius:18px;
+  border:1px solid rgba(46,92,228,.45);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:12px;
+  text-align:center;
+  overflow:hidden;
+  background:linear-gradient(160deg,rgba(4,27,61,.84),rgba(4,24,54,.91));
+}
+.primePlanEmpty:before,
+.primePlanEmpty:after{
+  content:"";
+  position:absolute;
+  left:-7%;right:-7%;
+  height:115px;
+}
+.primePlanEmpty:before{
+  bottom:82px;
+  background:
+    radial-gradient(170px 56px at 24% 70%,rgba(58,69,255,.30),transparent 70%),
+    radial-gradient(220px 64px at 61% 100%,rgba(35,99,255,.24),transparent 72%);
+  border-top:1px solid rgba(55,86,255,.24);
+}
+.primePlanEmpty:after{
+  bottom:-42px;
+  background:
+    radial-gradient(170px 65px at 16% 60%,rgba(69,42,255,.33),transparent 70%),
+    radial-gradient(220px 70px at 82% 62%,rgba(41,84,255,.30),transparent 72%);
+  border-top:1px solid rgba(71,59,255,.26);
+}
+.primePlanEmpty>span,
+.primePlanInfoVisual{
+  position:relative;
+  z-index:2;
+  width:105px;height:105px;
+  display:grid;place-items:center;
+  border-radius:26px;
+  color:#b67cff;
+  background:linear-gradient(145deg,rgba(28,61,160,.58),rgba(59,25,139,.70));
+  border:1px solid rgba(83,64,255,.56);
+  box-shadow:0 0 22px rgba(75,55,255,.22);
+}
+.primePlanEmpty strong{
+  position:relative;z-index:2;color:#fff;font-size:21px;
+}
+.primePlanEmpty p{
+  position:relative;z-index:2;color:#8fa1c1;font-size:12px;line-height:2;margin:0;
+}
+.primePlanInfoBody{
+  position:relative;
+  z-index:2;
+  display:grid;
+  grid-template-columns:150px 1fr;
+  align-items:center;
+  gap:25px;
+  margin:0 14px 16px;
+  padding:28px 24px;
+  min-height:170px;
+  border-radius:17px;
+  border:1px solid rgba(46,90,221,.38);
+  background:linear-gradient(150deg,rgba(5,28,62,.84),rgba(4,23,52,.90));
+}
+.primePlanInfoVisual{
+  width:120px;height:90px;
+  border-radius:48% 48% 20px 20px;
+  color:#af73ff;
+}
+.primePlanInfoBody strong{display:block;color:#dce6f6;font-size:14px;margin-bottom:10px}
+.primePlanInfoBody p{margin:0;color:#8da0bf;font-size:12px;line-height:2.05}
+.primePlanGroupChips{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.primePlanGroupChips span{padding:6px 9px;border-radius:9px;border:1px solid rgba(67,111,255,.35);color:#9fb2d1;font-size:8px;background:rgba(29,71,155,.12)}
+
+/* Plan create modal */
+.v2Modal:has(.primePlanCreateForm){
+  width:min(660px,calc(100% - 24px));
+  position:relative;
+  overflow:hidden;
+  border-radius:27px;
+  border:1px solid rgba(63,84,255,.82);
+  background:
+    linear-gradient(rgba(28,103,198,.045) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(28,103,198,.045) 1px,transparent 1px),
+    radial-gradient(circle at 90% 6%,rgba(100,45,255,.16),transparent 27%),
+    linear-gradient(155deg,#082043,#061631);
+  background-size:34px 34px,34px 34px,auto,auto;
+  box-shadow:0 0 34px rgba(34,142,255,.26),0 0 36px rgba(102,45,255,.18);
+}
+.v2Modal:has(.primePlanCreateForm):before{
+  content:"";
+  position:absolute;inset:-1px;border-radius:inherit;padding:1px;pointer-events:none;
+  background:linear-gradient(95deg,#25ddff,#3460ff,#7e38ff);
+  -webkit-mask:linear-gradient(#000 0 0) padding-box,linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;mask-composite:exclude;
+}
+.v2Modal:has(.primePlanCreateForm)>header{
+  min-height:88px;
+  border-bottom:1px solid rgba(48,104,212,.28);
+  background:rgba(5,24,53,.45);
+}
+.v2Modal:has(.primePlanCreateForm)>header>strong{font-size:21px;color:#fff}
+.v2Modal:has(.primePlanCreateForm) .v2ModalBody{padding:22px 28px 28px}
+.primePlanCreateForm{display:grid;gap:16px!important}
+.primePlanCreateForm label{color:#c0cce4!important;font-size:12px!important}
+.primePlanCreateForm input,
+.primePlanCreateForm select{
+  min-height:58px;
+  border-radius:14px!important;
+  border:1px solid rgba(45,111,255,.70)!important;
+  background:linear-gradient(145deg,rgba(6,31,68,.95),rgba(5,25,57,.97))!important;
+  color:#f3f7ff!important;
+  padding:0 15px!important;
+}
+.primePlanCreateForm input:focus,
+.primePlanCreateForm select:focus{
+  outline:none!important;
+  border-color:#35ddff!important;
+  box-shadow:0 0 0 3px rgba(48,217,255,.07),0 0 14px rgba(48,217,255,.10)!important;
+}
+.primePlanCreateForm>.v2Primary{
+  min-height:68px;
+  border-radius:15px!important;
+  border:1px solid rgba(255,209,91,.72)!important;
+  color:#171108!important;
+  font-size:17px!important;
+  font-weight:900!important;
+  background:
+    radial-gradient(circle at 19% 25%,rgba(255,239,87,.58),transparent 34%),
+    radial-gradient(circle at 82% 74%,rgba(255,61,100,.32),transparent 40%),
+    linear-gradient(105deg,#ffd33d 0%,#ff9e39 45%,#ff5a66 100%)!important;
+  box-shadow:0 0 20px rgba(255,159,51,.28),0 0 25px rgba(255,78,100,.10)!important;
+}
+
+/* Wallet */
+.primeWalletPage{display:grid;gap:18px;direction:rtl}
+.primeWalletBalance,
+.primeWalletLedger,
+.primeWalletTopup{
+  position:relative;
+  overflow:hidden;
+  border-radius:24px;
+  border:1px solid rgba(54,82,255,.78);
+  background:
+    linear-gradient(rgba(27,104,201,.045) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(27,104,201,.045) 1px,transparent 1px),
+    radial-gradient(circle at 92% 10%,rgba(105,44,255,.14),transparent 28%),
+    linear-gradient(155deg,rgba(7,34,73,.97),rgba(5,25,57,.985));
+  background-size:38px 38px,38px 38px,auto,auto;
+  box-shadow:0 0 24px rgba(33,132,255,.20),0 0 26px rgba(103,45,255,.14);
+}
+.primeWalletBalance{
+  min-height:220px;
+  display:grid;
+  grid-template-columns:120px 1fr;
+  align-items:center;
+  gap:26px;
+  padding:28px 34px;
+}
+.primeWalletBalance:before,
+.primeWalletLedger:before,
+.primeWalletTopup:before{
+  content:"";
+  position:absolute;inset:-1px;border-radius:inherit;padding:1px;pointer-events:none;
+  background:linear-gradient(95deg,#24ddff,#2f62ff 48%,#7f37ff);
+  -webkit-mask:linear-gradient(#000 0 0) padding-box,linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;mask-composite:exclude;
+}
+.primeWalletBalanceIcon{
+  position:relative;z-index:2;
+  width:104px;height:104px;
+  display:grid;place-items:center;
+  border-radius:24px;
+  color:#c071ff;
+  background:linear-gradient(145deg,rgba(49,52,190,.74),rgba(72,23,163,.80));
+  border:1px solid rgba(111,60,255,.56);
+  box-shadow:0 0 22px rgba(83,50,255,.22);
+}
+.primeWalletBalance>div:nth-child(2){position:relative;z-index:2;text-align:right}
+.primeWalletBalance span{display:block;color:#b7c5df;font-size:18px}
+.primeWalletBalance strong{display:block;color:#fff;font-size:39px;margin:13px 0}
+.primeWalletBalance small{display:block;color:#8194b7;font-size:11px}
+.primeWalletBalance>i{
+  position:absolute;left:-6%;right:-6%;bottom:-33px;height:112px;opacity:.48;
+  background:
+    radial-gradient(180px 66px at 22% 62%,rgba(52,81,255,.34),transparent 70%),
+    radial-gradient(245px 76px at 55% 100%,rgba(35,99,255,.26),transparent 72%),
+    radial-gradient(160px 60px at 83% 66%,rgba(111,44,255,.28),transparent 70%);
+  border-top:1px solid rgba(63,98,255,.29);
+}
+.primeWalletSectionHead{
+  position:relative;z-index:2;padding:22px 25px 12px;text-align:right;
+}
+.primeWalletSectionHead.icon{display:grid;grid-template-columns:62px 1fr;align-items:center;gap:12px}
+.primeWalletSectionHead strong{display:block;color:#fff;font-size:24px}
+.primeWalletSectionHead span{display:block;margin-top:6px;color:#8295b8;font-size:11px}
+.primeWalletLedgerIcon{
+  width:58px;height:58px;display:grid;place-items:center;border-radius:16px;color:#c376ff;
+  background:linear-gradient(145deg,rgba(54,35,178,.72),rgba(65,22,151,.76));
+  border:1px solid rgba(119,56,255,.54);
+}
+.primeWalletTableHead{
+  position:relative;z-index:2;
+  min-height:72px;
+  margin:0 14px;
+  padding:0 24px;
+  display:grid;
+  grid-template-columns:.8fr .8fr 1fr 1.4fr;
+  align-items:center;
+  border:1px solid rgba(46,90,216,.33);
+  border-radius:15px;
+  background:rgba(7,31,68,.68);
+  color:#b8c5de;
+  font-size:13px;
+}
+.primeWalletRows{position:relative;z-index:2;margin:0 14px 16px}
+.primeWalletRow{
+  min-height:68px;
+  display:grid;
+  grid-template-columns:.8fr .8fr 1fr 1.4fr;
+  align-items:center;
+  gap:8px;
+  padding:10px 24px;
+  border-bottom:1px solid rgba(47,91,186,.20);
+  color:#aebbd2;
+  font-size:11px;
+}
+.primeWalletRow strong.plus{color:#61e5b0}
+.primeWalletRow strong.minus{color:#ff97ae}
+.primeWalletEmpty{
+  position:relative;z-index:2;
+  min-height:430px;
+  margin:0 14px 16px;
+  border-radius:17px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;
+  overflow:hidden;
+}
+.primeWalletEmpty:before,
+.primeWalletEmpty:after{
+  content:"";position:absolute;left:-6%;right:-6%;height:130px;
+}
+.primeWalletEmpty:before{
+  bottom:95px;background:
+  radial-gradient(180px 62px at 20% 68%,rgba(54,73,255,.32),transparent 70%),
+  radial-gradient(230px 68px at 55% 100%,rgba(42,97,255,.24),transparent 72%);
+  border-top:1px solid rgba(58,91,255,.24);
+}
+.primeWalletEmpty:after{
+  bottom:-38px;background:
+  radial-gradient(170px 65px at 15% 60%,rgba(79,46,255,.33),transparent 70%),
+  radial-gradient(230px 70px at 81% 63%,rgba(45,84,255,.31),transparent 72%);
+  border-top:1px solid rgba(73,62,255,.27);
+}
+.primeWalletEmpty>span{
+  position:relative;z-index:2;
+  width:108px;height:108px;border-radius:26px;display:grid;place-items:center;color:#bd73ff;
+  background:linear-gradient(145deg,rgba(27,61,161,.58),rgba(61,24,143,.70));
+  border:1px solid rgba(88,61,255,.56);box-shadow:0 0 22px rgba(77,51,255,.22);
+}
+.primeWalletEmpty strong{position:relative;z-index:2;color:#fff;font-size:24px}
+.primeWalletEmpty p{position:relative;z-index:2;color:#8d9fbd;font-size:12px;margin:0}
+.primeWalletTopup{padding-bottom:20px}
+.primeWalletTopup .v2PaymentActions{position:relative;z-index:2;padding:0 22px}
+
+/* Commerce */
+.primeCommercePage{display:grid;gap:15px;direction:rtl}
+.primeCommerceTabs{
+  display:flex;
+  justify-content:flex-start;
+  gap:8px;
+}
+.primeCommerceTabs button{
+  min-width:150px;
+  height:72px;
+  border-radius:15px;
+  border:1px solid rgba(56,99,255,.47);
+  background:linear-gradient(145deg,rgba(7,34,74,.94),rgba(6,27,60,.96));
+  color:#b9c7df;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  font-size:15px;
+}
+.primeCommerceTabs button.active{
+  color:#fff;
+  border-color:rgba(102,61,255,.82);
+  background:
+    radial-gradient(circle at 83% 34%,rgba(28,221,255,.22),transparent 35%),
+    linear-gradient(145deg,rgba(17,92,182,.92),rgba(71,32,196,.94));
+  box-shadow:0 0 21px rgba(49,124,255,.18),0 0 20px rgba(100,44,255,.18);
+}
+.primeCommerceTabs button.active svg{color:#2fe2ff}
+.primeCommercePanel{
+  position:relative;
+  overflow:hidden;
+  padding:24px 20px 18px;
+  border-radius:25px;
+  border:1px solid rgba(56,82,255,.78);
+  background:
+    linear-gradient(rgba(27,104,201,.045) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(27,104,201,.045) 1px,transparent 1px),
+    radial-gradient(circle at 91% 5%,rgba(101,45,255,.13),transparent 28%),
+    linear-gradient(155deg,rgba(7,34,73,.97),rgba(5,25,57,.985));
+  background-size:38px 38px,38px 38px,auto,auto;
+  box-shadow:0 0 24px rgba(33,132,255,.20),0 0 26px rgba(103,45,255,.14);
+}
+.primeCommercePanel:before{
+  content:"";position:absolute;inset:-1px;border-radius:inherit;padding:1px;pointer-events:none;
+  background:linear-gradient(95deg,#24ddff,#2e62ff 48%,#7f37ff);
+  -webkit-mask:linear-gradient(#000 0 0) padding-box,linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;mask-composite:exclude;
+}
+.primeCommerceSearch{
+  position:relative;z-index:2;
+  min-height:92px;
+  display:grid;
+  grid-template-columns:66px 1fr;
+  gap:13px;
+  align-items:center;
+  padding:12px 14px;
+  border-radius:18px;
+  overflow:hidden;
+  border:1px solid rgba(78,57,255,.80);
+  background:
+    radial-gradient(circle at 13% 50%,rgba(26,218,255,.10),transparent 30%),
+    radial-gradient(circle at 90% 40%,rgba(111,45,255,.18),transparent 42%),
+    linear-gradient(145deg,rgba(6,32,69,.95),rgba(7,29,64,.95));
+}
+.primeCommerceSearch button{
+  width:60px;height:60px;border-radius:16px;
+  border:1px solid rgba(110,59,255,.69);
+  background:linear-gradient(145deg,rgba(29,57,166,.72),rgba(74,23,164,.82));
+  color:#bb8cff;display:grid;place-items:center;
+}
+.primeCommerceSearch input{
+  width:100%;border:0;outline:0;background:transparent;color:#edf4ff;
+  text-align:right;font:500 18px/1.3 Tahoma,Arial,sans-serif;
+}
+.primeCommerceSearch input::placeholder{color:#a4afd0}
+.primeCommerceSearch>i{
+  position:absolute;left:-7%;right:-7%;bottom:-27px;height:72px;opacity:.4;
+  background:
+    radial-gradient(120px 44px at 16% 55%,rgba(35,217,255,.42),transparent 70%),
+    radial-gradient(155px 48px at 47% 100%,rgba(65,101,255,.34),transparent 72%),
+    radial-gradient(105px 41px at 84% 72%,rgba(122,47,255,.40),transparent 70%);
+  border-top:1px solid rgba(54,160,255,.45);
+}
+.primeCommerceFilters{
+  position:relative;z-index:2;
+  display:grid;
+  grid-template-columns:1.1fr 1fr 1fr 90px;
+  gap:11px;
+  margin:22px 0;
+}
+.primeCommerceFilters label{
+  position:relative;display:flex;align-items:center;min-height:64px;border-radius:15px;
+  border:1px solid rgba(49,101,255,.68);
+  background:linear-gradient(145deg,rgba(7,35,76,.94),rgba(6,28,63,.96));
+}
+.primeCommerceFilters select{
+  width:100%;height:100%;appearance:none;border:0;outline:0;background:transparent;color:#edf4ff;
+  padding:0 16px 0 40px;text-align:right;font:500 13px/1 Tahoma,Arial,sans-serif;
+}
+.primeCommerceFilters label>svg{
+  position:absolute;left:13px;transform:rotate(-90deg);color:#88a7e8;pointer-events:none;
+}
+.primeCommerceFilters>button{
+  min-height:64px;border-radius:15px;border:1px solid rgba(39,145,255,.70);
+  background:linear-gradient(145deg,rgba(9,48,98,.94),rgba(6,31,71,.96));color:#a7d4ff;
+}
+.primeCommerceTable{
+  position:relative;z-index:2;
+  overflow:hidden;
+  min-height:650px;
+  border-radius:19px;
+  border:1px solid rgba(49,98,238,.56);
+  background:linear-gradient(160deg,rgba(5,29,65,.94),rgba(4,24,55,.96));
+  display:grid;
+  grid-template-rows:auto 1fr auto;
+}
+.primeCommerceTableHead{
+  min-height:82px;
+  display:grid;
+  grid-template-columns:.9fr .8fr 1fr 1fr 1.4fr;
+  align-items:center;
+  padding:0 20px;
+  border-bottom:1px solid rgba(39,95,192,.31);
+  color:#bcc8df;
+  font-size:13px;
+}
+.primeCommerceTableHead span{text-align:center}
+.primeCommerceTableBody{position:relative;min-height:440px}
+.primeCommerceRow{
+  min-height:76px;
+  display:grid;
+  grid-template-columns:.9fr .8fr 1fr 1fr 1.4fr;
+  align-items:center;
+  gap:8px;
+  padding:10px 20px;
+  border-bottom:1px solid rgba(40,89,184,.20);
+  color:#adbbd4;
+  text-align:center;
+  font-size:10px;
+}
+.primeCommerceRow strong{color:#fff;font-size:12px}
+.primeCommerceRow small{display:block;margin-top:4px;color:#7285a7;font-size:8px}
+.primeCommerceRow>div:last-child{display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap}
+.primeCommerceEmpty{
+  position:absolute;inset:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:15px;text-align:center;
+  overflow:hidden;color:#9aabc9;
+}
+.primeCommerceEmpty:before,
+.primeCommerceEmpty:after{content:"";position:absolute;left:-6%;right:-6%;height:130px}
+.primeCommerceEmpty:before{
+  bottom:100px;background:
+  radial-gradient(180px 62px at 20% 68%,rgba(54,73,255,.32),transparent 70%),
+  radial-gradient(230px 68px at 55% 100%,rgba(42,97,255,.24),transparent 72%);
+  border-top:1px solid rgba(58,91,255,.24);
+}
+.primeCommerceEmpty:after{
+  bottom:-38px;background:
+  radial-gradient(170px 65px at 15% 60%,rgba(79,46,255,.33),transparent 70%),
+  radial-gradient(230px 70px at 81% 63%,rgba(45,84,255,.31),transparent 72%);
+  border-top:1px solid rgba(73,62,255,.27);
+}
+.primeCommerceEmpty>span{
+  position:relative;z-index:2;
+  width:110px;height:110px;border-radius:27px;display:grid;place-items:center;color:#42d9ff;
+  background:linear-gradient(145deg,rgba(26,68,167,.62),rgba(63,24,144,.70));
+  border:1px solid rgba(87,61,255,.57);box-shadow:0 0 22px rgba(79,53,255,.22);
+}
+.primeCommerceEmpty strong{position:relative;z-index:2;color:#fff;font-size:24px}
+.primeCommerceEmpty p{position:relative;z-index:2;color:#8799ba;font-size:12px;margin:0}
+.primeCommercePager{
+  min-height:92px;
+  display:flex;align-items:center;justify-content:space-between;gap:15px;
+  padding:0 22px;border-top:1px solid rgba(43,88,184,.30);color:#aab7d1;font-size:12px;
+}
+.primeCommercePager>div{display:flex;align-items:center;gap:18px;direction:ltr}
+.primeCommercePager button{
+  width:54px;height:54px;border-radius:14px;border:1px solid rgba(45,102,255,.52);
+  background:linear-gradient(145deg,rgba(8,39,85,.94),rgba(6,29,66,.96));color:#839bdf;display:grid;place-items:center;
+}
+.primeCommercePager button:disabled{opacity:.35}
+.primeCommercePager b{font:500 16px/1 Arial,sans-serif;color:#a3afd0}
+
+@media(max-width:760px){
+  .v2Content:has(.primePlansPage),
+  .v2Content:has(.primeWalletPage),
+  .v2Content:has(.primeCommercePage){width:calc(100% - 22px)}
+  .primePlanPageHead,.primeWalletPageHead,.primeCommercePageHead{margin-bottom:15px;align-items:center}
+  .primePlanPageHead .v2Eyebrow,.primeWalletPageHead .v2Eyebrow,.primeCommercePageHead .v2Eyebrow{font-size:8px;letter-spacing:3px;margin-bottom:9px}
+  .primePlanPageHead h1,.primeWalletPageHead h1,.primeCommercePageHead h1{font-size:34px;margin-bottom:4px}
+  .primePlanPageHead p,.primeWalletPageHead p,.primeCommercePageHead p{font-size:13px}
+  .primePlanPageHead .v2Create{display:flex!important;min-width:158px;height:66px;border-radius:16px;font-size:17px;padding:0 18px}
+  .primePlanCards{grid-template-columns:1fr}
+  .primePlanSectionHead{grid-template-columns:52px 1fr;padding:17px 17px 10px}
+  .primePlanSectionIcon{width:49px;height:49px;border-radius:14px}
+  .primePlanSectionHead strong{font-size:19px}
+  .primePlanInfoBody{grid-template-columns:110px 1fr;gap:16px;padding:20px 16px}
+  .primePlanInfoVisual{width:92px;height:76px}
+  .primeWalletBalance{min-height:185px;grid-template-columns:92px 1fr;padding:23px}
+  .primeWalletBalanceIcon{width:82px;height:82px}
+  .primeWalletBalance strong{font-size:31px}
+  .primeWalletTableHead,.primeWalletRow{padding-left:14px;padding-right:14px}
+  .primeCommerceTabs button{min-width:0;flex:1;height:62px;font-size:12px}
+  .primeCommercePanel{padding:18px 14px 14px}
+  .primeCommerceSearch{min-height:76px;grid-template-columns:53px 1fr}
+  .primeCommerceSearch button{width:49px;height:49px}
+  .primeCommerceSearch input{font-size:15px}
+  .primeCommerceFilters{grid-template-columns:1fr 1fr;gap:8px}
+  .primeCommerceFilters>button{grid-column:span 2}
+  .primeCommerceTableHead,.primeCommerceRow{padding-left:10px;padding-right:10px;font-size:9px}
+}
+@media(max-width:430px){
+  .primePlanPageHead,.primeWalletPageHead,.primeCommercePageHead{gap:8px}
+  .primePlanPageHead h1,.primeWalletPageHead h1,.primeCommercePageHead h1{font-size:29px}
+  .primePlanPageHead .v2Create{min-width:125px;height:58px;font-size:14px;padding:0 12px}
+  .primePlanPageHead .v2Create svg{width:21px;height:21px}
+  .primePlanSection,.primePlanInfo,.primeWalletBalance,.primeWalletLedger,.primeWalletTopup,.primeCommercePanel{border-radius:20px}
+  .primePlanSectionHead{grid-template-columns:46px 1fr;padding:14px 13px 8px}
+  .primePlanSectionIcon{width:43px;height:43px}
+  .primePlanSectionHead strong{font-size:16px}
+  .primePlanSectionHead span{font-size:9px}
+  .primePlanInfoBody{grid-template-columns:82px 1fr;padding:15px 12px}
+  .primePlanInfoVisual{width:72px;height:62px}
+  .primePlanInfoBody p{font-size:10px}
+  .primeWalletBalance{grid-template-columns:76px 1fr;padding:18px}
+  .primeWalletBalanceIcon{width:67px;height:67px;border-radius:19px}
+  .primeWalletBalance span{font-size:14px}
+  .primeWalletBalance strong{font-size:25px}
+  .primeWalletTableHead,.primeWalletRow{
+    grid-template-columns:.7fr .8fr .9fr 1.25fr;
+    padding-left:9px;padding-right:9px;font-size:9px;
+  }
+  .primeWalletSectionHead{padding-left:15px;padding-right:15px}
+  .primeWalletSectionHead strong{font-size:19px}
+  .primeWalletEmpty strong{font-size:19px}
+  .primeCommerceTabs{gap:5px}
+  .primeCommerceTabs button{height:55px;font-size:10px;padding:0 6px}
+  .primeCommerceTabs button svg{width:16px}
+  .primeCommercePanel{padding:14px 10px 12px}
+  .primeCommerceSearch{min-height:68px;grid-template-columns:47px 1fr}
+  .primeCommerceSearch button{width:43px;height:43px}
+  .primeCommerceSearch input{font-size:13px}
+  .primeCommerceFilters label,.primeCommerceFilters>button{min-height:54px}
+  .primeCommerceFilters select{font-size:10px;padding-right:9px}
+  .primeCommerceTableHead,.primeCommerceRow{
+    grid-template-columns:.85fr .75fr .9fr .9fr 1.25fr;
+    font-size:8px;
+    padding-left:7px;padding-right:7px;
+  }
+  .primeCommerceRow strong{font-size:9px}
+  .primeCommerceEmpty strong{font-size:19px}
+  .primeCommercePager{padding:0 10px;font-size:9px}
+  .primeCommercePager>div{gap:8px}
+  .primeCommercePager button{width:42px;height:42px}
+  .primeCommercePager b{font-size:13px}
+  .v2Modal:has(.primePlanCreateForm) .v2ModalBody{padding:17px}
+  .primePlanCreateForm input,.primePlanCreateForm select{min-height:53px}
+  .primePlanCreateForm>.v2Primary{min-height:60px;font-size:15px!important}
+}
