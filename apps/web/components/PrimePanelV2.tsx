@@ -166,23 +166,17 @@ type BotRow = {
 };
 
 type AdminPlanAssignment = {
-  assignment_id: string;
+  assignment_id: string | null;
   plan_id: string;
   name: string;
   enabled: boolean;
   bot_visible: boolean;
   base_price_per_gib_toman: string;
   retail_price_per_gib_toman: string;
+  automatic?: boolean;
 };
 
-type BotCatalogRow = {
-  plan_id: string;
-  name: string;
-  base_price_per_gib_toman: string;
-  retail_price_per_gib_toman: string;
-  enabled_in_bot: boolean;
-  sort_order: number;
-};
+
 
 type ConnectionRow = {
   id: string;
@@ -307,6 +301,19 @@ const gib = (bytes?: number | null) =>
 
 const dt = (value?: string | null) =>
   value ? new Date(value).toLocaleString("fa-IR") : "—";
+
+const statusFa = (value?: string | null) => ({
+  active: "فعال",
+  disabled: "غیرفعال",
+  error: "خطا",
+  pending: "در انتظار",
+  awaiting_review: "در انتظار بررسی",
+  paid: "پرداخت‌شده",
+  rejected: "ردشده",
+  failed: "ناموفق",
+  provisioned: "فعال‌شده",
+  cancelled: "لغوشده",
+}[String(value || "")] || value || "—");
 
 function Modal({
   open,
@@ -497,8 +504,6 @@ export default function PrimePanelV2({
   const [adminSort, setAdminSort] = useState("newest");
   const [adminPickerSearch, setAdminPickerSearch] = useState("");
   const [adminOptions, setAdminOptions] = useState<AdminRow[]>([]);
-  const [assignmentAdminId, setAssignmentAdminId] = useState("");
-  const [assignmentPrice, setAssignmentPrice] = useState("");
   const [clientSearch, setClientSearch] = useState("");
   const [clientStatus, setClientStatus] = useState("");
   const [clientAdminFilter, setClientAdminFilter] = useState("");
@@ -557,8 +562,6 @@ export default function PrimePanelV2({
   const [gatewayMerchant, setGatewayMerchant] = useState("");
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [accent, setAccent] = useState<"cyan" | "violet" | "emerald" | "orange">("cyan");
-  const [botCatalog, setBotCatalog] = useState<BotCatalogRow[]>([]);
-  const [botCatalogSelection, setBotCatalogSelection] = useState<string[]>([]);
   const [adminAssignments, setAdminAssignments] = useState<AdminPlanAssignment[]>([]);
   const [clientPlanOptions, setClientPlanOptions] = useState<PlanRow[]>([]);
   const [backupFile, setBackupFile] = useState<File | null>(null);
@@ -872,42 +875,6 @@ export default function PrimePanelV2({
     setClientForm((v) => ({ ...v, username: "" }));
   }
 
-  async function assignSelectedPlan() {
-    if (!selectedPlan) return;
-    setError("");
-    if (!assignmentAdminId) {
-      setError("برای تخصیص پلن، ابتدا نماینده را انتخاب کنید.");
-      return;
-    }
-
-    const retailPrice = Number(assignmentPrice);
-    const minimumPrice = Number(selectedPlan.base_price_per_gib_toman || selectedPlan.cost_per_gib_toman || 0);
-    if (!Number.isFinite(retailPrice) || retailPrice <= 0) {
-      setError("قیمت فروش هر GB را به‌صورت صحیح وارد کنید.");
-      return;
-    }
-    if (retailPrice < minimumPrice) {
-      setError(`قیمت فروش نمی‌تواند کمتر از قیمت پایه (${money(minimumPrice)}) باشد.`);
-      return;
-    }
-
-    const targetAdminId = assignmentAdminId;
-    await run(
-      () => authApi(`/api/v1/admins/${targetAdminId}/plans/${selectedPlan.id}`, {
-        method: "PUT",
-        body: JSON.stringify({
-          retail_price_per_gib_toman: retailPrice,
-          bot_visible: true,
-        }),
-      }),
-      "پلن با موفقیت به نماینده تخصیص داده شد"
-    );
-
-    if (clientForm.admin_id === targetAdminId) {
-      await chooseClientAdmin(targetAdminId);
-    }
-  }
-
   async function createPlan(e: FormEvent) {
     e.preventDefault();
     await run(() => authApi("/api/v1/plans", {
@@ -985,20 +952,7 @@ export default function PrimePanelV2({
 
   async function openBotManage(bot: BotRow) {
     setSelectedId(bot.id);
-    const data = await safe(() => authApi<BotCatalogRow[]>(`/api/v1/bots/${bot.id}/catalog`));
-    if (data) {
-      setBotCatalog(data);
-      setBotCatalogSelection(data.filter((x) => x.enabled_in_bot).map((x) => x.plan_id));
-    }
     setModal("bot-manage");
-  }
-
-  async function saveBotCatalog() {
-    if (!selectedBot) return;
-    await run(() => authApi(`/api/v1/bots/${selectedBot.id}/catalog`, {
-      method: "PUT",
-      body: JSON.stringify({ plan_ids: botCatalogSelection }),
-    }), "کاتالوگ ربات ذخیره شد");
   }
 
   async function reviewPayment(payment: PaymentRow, approved: boolean) {
@@ -1560,7 +1514,7 @@ export default function PrimePanelV2({
               value={clientSearch}
               onChange={(e) => setClientSearch(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && loadClients(1)}
-              placeholder="جستجو بر اساس Username"
+              placeholder="جستجو بر اساس نام کاربری"
             />
             <i className="primeClientSearchWave" />
           </div>
@@ -1587,7 +1541,7 @@ export default function PrimePanelV2({
                 <PrimeSelect
                   value={clientAdminFilter}
                   onChange={setClientAdminFilter}
-                  placeholder="Admin (نماینده)"
+                  placeholder="نماینده"
                   options={[
                     { value: "", label: "همه نماینده‌ها" },
                     ...adminOptions.map((admin) => ({ value: admin.id, label: admin.display_name || admin.username })),
@@ -1628,7 +1582,7 @@ export default function PrimePanelV2({
                   key={client.id}
                   onClick={() => { setSelectedId(client.id); setModal("client-manage"); }}
                 >
-                  <div><strong>{client.username}</strong><small>{client.status}</small></div>
+                  <div><strong>{client.username}</strong><small>{statusFa(client.status)}</small></div>
                   <span>{client.admin_username || "—"}</span>
                   <span>{client.connection_name || client.group_name || "—"}</span>
                   <span>{client.quota_bytes ? gib(client.quota_bytes) : "∞"}</span>
@@ -1668,7 +1622,7 @@ export default function PrimePanelV2({
         <section className="primePlanSection">
           <div className="primePlanSectionHead">
             <div className="primePlanSectionIcon"><Database size={27} /></div>
-            <div><strong>پلن‌ها</strong><span>پلن‌های Owner و نماینده‌ها تعریف می‌شوند</span></div>
+            <div><strong>پلن‌ها</strong><span>پلن‌های مالک به‌صورت خودکار برای همه نمایندگان فعال می‌شوند</span></div>
           </div>
 
           {plans.length ? (
@@ -1679,9 +1633,7 @@ export default function PrimePanelV2({
                   className="primePlanCard"
                   onClick={async () => {
                     setSelectedId(plan.id);
-                    setAssignmentAdminId("");
                     if (user.role === "owner") await searchAdminOptions("");
-                    setAssignmentPrice(plan.base_price_per_gib_toman || "");
                     setModal("plan-manage");
                   }}
                 >
@@ -1703,13 +1655,13 @@ export default function PrimePanelV2({
         <section className="primePlanInfo primePlanGroups">
           <div className="primePlanSectionHead">
             <div className="primePlanSectionIcon purple"><Users size={27} /></div>
-            <div><strong>گروه‌ها</strong><span>مدیریت Groupها و هماهنگی با PasarGuard از طریق Sync</span></div>
+            <div><strong>گروه‌ها</strong><span>مدیریت گروه‌ها و هماهنگی با PasarGuard از طریق همگام‌سازی</span></div>
           </div>
           <div className="primePlanInfoBody">
             <div className="primePlanInfoVisual"><Users size={54} /></div>
             <div>
               <strong>گروه‌های کاربری را ایجاد و مدیریت کنید.</strong>
-              <p>اطلاعات گروه‌ها با سرویس PasarGuard از طریق Sync همگام‌سازی می‌شود.</p>
+              <p>اطلاعات گروه‌ها با سرویس PasarGuard همگام‌سازی می‌شود.</p>
               {groups.length > 0 && (
                 <div className="primePlanGroupChips">
                   {groups.slice(0, 8).map((group) => <span key={group.id}>{group.name}</span>)}
@@ -1728,7 +1680,7 @@ export default function PrimePanelV2({
             <div className="primePlanInfoVisual"><Settings size={52} /></div>
             <div>
               <p>شما می‌توانید محدودیت‌ها و قوانین پیش‌فرض فروش را تنظیم کنید.</p>
-              <p>این قانون مشخص می‌کند کاربر Owner یا نماینده در زمان خرید چه پلن‌هایی مجاز است و محاسبه مصرف چگونه انجام شود.</p>
+              <p>قوانین فروش، قیمت پایه و محدودیت‌های هر پلن در این بخش مدیریت می‌شوند.</p>
             </div>
           </div>
         </section>
@@ -2000,7 +1952,7 @@ export default function PrimePanelV2({
 
           <div className="primeBotsTable">
             <div className="primeBotsTableHead">
-              <span>نام</span><span>Wallet</span><span>Card</span><span>Gateway</span><span>وضعیت</span>
+              <span>نام</span><span>کیف پول</span><span>کارت</span><span>درگاه</span><span>وضعیت</span>
             </div>
             <div className="primeBotsTableBody">
               {bots.map((bot) => (
@@ -2357,7 +2309,7 @@ export default function PrimePanelV2({
         <form className="v2Form primeCreateForm primeAdminCreateForm" onSubmit={createAdmin}>
           <label>نام کاربری<input value={adminForm.username} onChange={(e) => setAdminForm({ ...adminForm, username: e.target.value })} required /></label>
           <label>نام نمایشی<input value={adminForm.display_name} onChange={(e) => setAdminForm({ ...adminForm, display_name: e.target.value })} /></label>
-          <label>Telegram ID<input type="number" value={adminForm.telegram_id} onChange={(e) => setAdminForm({ ...adminForm, telegram_id: e.target.value })} /></label>
+          <label>شناسه تلگرام<input type="number" value={adminForm.telegram_id} onChange={(e) => setAdminForm({ ...adminForm, telegram_id: e.target.value })} /></label>
           <label>رمز عبور<input type="password" minLength={10} value={adminForm.password} onChange={(e) => setAdminForm({ ...adminForm, password: e.target.value })} required /></label>
           <label>موجودی اولیه<input type="number" value={adminForm.initial_balance_toman} onChange={(e) => setAdminForm({ ...adminForm, initial_balance_toman: e.target.value })} /></label>
           <button className="v2Primary" disabled={busy}>ساخت نماینده</button>
@@ -2367,23 +2319,25 @@ export default function PrimePanelV2({
       <Modal open={modal === "admin-manage" && Boolean(selectedAdmin)} title={selectedAdmin ? `مدیریت ${selectedAdmin.username}` : "مدیریت نماینده"} onClose={() => setModal(null)} wide>
         {selectedAdmin && <div className="v2Stack">
           <section className="v2Metrics compact">
-            <article className="v2Metric"><span>کیف پول</span><strong>{money(selectedAdmin.wallet_balance_toman)}</strong><small>{selectedAdmin.client_count} کلاینت</small></article>
-            <article className="v2Metric"><span>وضعیت</span><strong>{selectedAdmin.status}</strong><small>{selectedAdmin.telegram_id || "Telegram ID ندارد"}</small></article>
+            <article className="v2Metric"><span>کیف پول</span><strong>{money(selectedAdmin.wallet_balance_toman)}</strong><small>{selectedAdmin.client_count.toLocaleString("fa-IR")} کلاینت</small></article>
+            <article className="v2Metric"><span>وضعیت حساب</span><strong>{statusFa(selectedAdmin.status)}</strong><small>{selectedAdmin.telegram_id ? `شناسه تلگرام: ${selectedAdmin.telegram_id}` : "شناسه تلگرام ثبت نشده"}</small></article>
           </section>
-          <article className="v2Card nested">
-            <div className="v2CardHead"><div><strong>پلن‌های نماینده</strong><span>{adminAssignments.length} تخصیص</span></div></div>
+          <article className="v2Card nested primeAutoPlansCard">
+            <div className="v2CardHead">
+              <div>
+                <strong>پلن‌های فعال نماینده</strong>
+                <span>تمام پلن‌های فعال مالک به‌صورت خودکار برای همه نمایندگان در دسترس هستند.</span>
+              </div>
+            </div>
             <div className="v2Catalog">
-              {adminAssignments.map((p) => <div className="v2CatalogRow" key={p.assignment_id}>
-                <div><strong>{p.name}</strong><span>{money(p.retail_price_per_gib_toman)} / GB</span></div>
-                <button className="danger" onClick={() => openConfirmAction({
-                  title: "حذف دسترسی پلن",
-                  description: `دسترسی نماینده به پلن «${p.name}» حذف شود؟`,
-                  submitLabel: "حذف دسترسی",
-                  successMessage: "پلن از نماینده حذف شد",
-                  action: () => authApi(`/api/v1/admins/${selectedAdmin.id}/plans/${p.plan_id}`, { method: "DELETE" }),
-                })}>حذف دسترسی</button>
+              {adminAssignments.map((p) => <div className="v2CatalogRow" key={p.plan_id}>
+                <div>
+                  <strong>{p.name}</strong>
+                  <span>قیمت فروش: {money(p.retail_price_per_gib_toman)} / GB</span>
+                </div>
+                <span className="primeAutoBadge">{p.automatic ? "خودکار" : "قیمت سفارشی"}</span>
               </div>)}
-              {!adminAssignments.length && <Empty text="پلنی تخصیص داده نشده." />}
+              {!adminAssignments.length && <Empty text="پلن فعالی در پنل تعریف نشده است." />}
             </div>
           </article>
           <div className="v2ActionGrid">
@@ -2411,7 +2365,7 @@ export default function PrimePanelV2({
 
       <Modal open={modal === "client-create"} title="ساخت کلاینت" onClose={() => setModal(null)}>
         <form className="v2Form primeCreateForm primeClientCreateForm" onSubmit={createClient}>
-          <label>Username<input value={clientForm.username} onChange={(e) => setClientForm({ ...clientForm, username: e.target.value })} required /></label>
+          <label>نام کاربری<input value={clientForm.username} onChange={(e) => setClientForm({ ...clientForm, username: e.target.value })} required /></label>
           {user.role === "owner" && <div className="v2Picker">
             <label>جستجوی نماینده
               <div className="v2PickerSearch"><input value={adminPickerSearch} onChange={(e) => setAdminPickerSearch(e.target.value)} placeholder="نام کاربری یا نام نماینده" /><button type="button" onClick={() => searchAdminOptions()}>جستجو</button></div>
@@ -2449,18 +2403,18 @@ export default function PrimePanelV2({
       <Modal open={modal === "client-manage" && Boolean(selectedClient)} title={selectedClient ? selectedClient.username : "کلاینت"} onClose={() => setModal(null)} wide>
         {selectedClient && <div className="v2Stack">
           <section className="v2Metrics compact">
-            <article className="v2Metric"><span>مصرف</span><strong>{gib(selectedClient.lifetime_usage_bytes)}</strong><small>Lifetime</small></article>
+            <article className="v2Metric"><span>مصرف کل</span><strong>{gib(selectedClient.lifetime_usage_bytes)}</strong><small>مصرف مادام‌العمر</small></article>
             <article className="v2Metric"><span>حجم</span><strong>{selectedClient.quota_bytes ? gib(selectedClient.quota_bytes) : "∞"}</strong><small>{selectedClient.hwid_limit || "∞"} دستگاه</small></article>
-            <article className="v2Metric"><span>انقضا</span><strong>{dt(selectedClient.expires_at)}</strong><small>{selectedClient.status}</small></article>
+            <article className="v2Metric"><span>انقضا</span><strong>{dt(selectedClient.expires_at)}</strong><small>{statusFa(selectedClient.status)}</small></article>
           </section>
           {selectedClient.subscription_url && <div className="v2QrInline">
             <QRCodeSVG value={selectedClient.subscription_url} size={150} />
-            <div><strong>Subscription</strong><span>{selectedClient.subscription_url}</span><button onClick={() => navigator.clipboard.writeText(selectedClient.subscription_url || "")}><Copy size={14} /> کپی</button></div>
+            <div><strong>لینک اشتراک</strong><span>{selectedClient.subscription_url}</span><button onClick={() => navigator.clipboard.writeText(selectedClient.subscription_url || "")}><Copy size={14} /> کپی</button></div>
           </div>}
           <div className="v2ActionGrid">
-            <button onClick={() => openClientEdit(selectedClient)}>ویرایش حجم/مدت/HWID</button>
-            <button onClick={() => run(() => authApi(`/api/v1/clients/${selectedClient.id}/reset-usage`, { method: "POST" }), "مصرف Reset شد")}>Reset Usage</button>
-            <button onClick={() => run(() => authApi(`/api/v1/clients/${selectedClient.id}/revoke-subscription`, { method: "POST" }), "Subscription عوض شد")}>Revoke Subscription</button>
+            <button onClick={() => openClientEdit(selectedClient)}>ویرایش حجم، مدت و دستگاه</button>
+            <button onClick={() => run(() => authApi(`/api/v1/clients/${selectedClient.id}/reset-usage`, { method: "POST" }), "مصرف بازنشانی شد")}>بازنشانی مصرف</button>
+            <button onClick={() => run(() => authApi(`/api/v1/clients/${selectedClient.id}/revoke-subscription`, { method: "POST" }), "لینک اشتراک تغییر کرد")}>تغییر لینک اشتراک</button>
             <button className="danger" onClick={() => selectedClient.status === "active"
               ? openConfirmAction({
                   title: "غیرفعال‌کردن کلاینت",
@@ -2503,28 +2457,16 @@ export default function PrimePanelV2({
 
       <Modal open={modal === "plan-manage" && Boolean(selectedPlan)} title={selectedPlan?.name || "پلن"} onClose={() => setModal(null)}>
         {selectedPlan && <div className="v2Stack">
-          <div className="v2Info">
+          <div className="v2Info primePlanAutoInfo">
             <p>قیمت پایه: <b>{money(selectedPlan.base_price_per_gib_toman || selectedPlan.cost_per_gib_toman)} / GB</b></p>
-            <p>قیمت فروش: <b>{money(selectedPlan.retail_price_per_gib_toman || selectedPlan.base_price_per_gib_toman)} / GB</b></p>
+            {user.role === "admin" && <p>قیمت فروش شما: <b>{money(selectedPlan.retail_price_per_gib_toman || selectedPlan.base_price_per_gib_toman)} / GB</b></p>}
+            <p className="primeAutoPlanText">این پلن به‌صورت خودکار برای تمام نمایندگان فعال و تمام ربات‌های فروش آن‌ها در دسترس است.</p>
           </div>
           {user.role === "owner" ? <>
-            <div className="v2AssignBox">
-              <strong>تخصیص این پلن به نماینده</strong>
-              <div className="v2PickerSearch"><input value={adminPickerSearch} onChange={(e) => setAdminPickerSearch(e.target.value)} placeholder="جستجوی نماینده" /><button onClick={() => searchAdminOptions()}>جستجو</button></div>
-              <PrimeSelect
-                value={assignmentAdminId}
-                onChange={setAssignmentAdminId}
-                placeholder="انتخاب نماینده"
-                options={adminOptions.map((a) => ({ value: a.id, label: `${a.display_name || a.username} (@${a.username})` }))}
-              />
-              <input type="number" min={selectedPlan.base_price_per_gib_toman || selectedPlan.cost_per_gib_toman || "1"} placeholder="قیمت فروش هر GB" value={assignmentPrice} onChange={(e) => setAssignmentPrice(e.target.value)} />
-              <button className="v2Primary" disabled={busy || !assignmentAdminId || !assignmentPrice} onClick={assignSelectedPlan}>تخصیص پلن</button>
-              {!assignmentAdminId && <small className="primeFieldHint">برای ادامه یک نماینده فعال را انتخاب کنید.</small>}
-            </div>
             <button onClick={() => openOwnerPlanEdit(selectedPlan)}>ویرایش پلن</button>
             <button className="v2Danger" onClick={() => openConfirmAction({
               title: "خاموش‌کردن پلن",
-              description: `پلن «${selectedPlan.name}» خاموش شود؟`,
+              description: `پلن «${selectedPlan.name}» برای همه نمایندگان و ربات‌ها خاموش شود؟`,
               submitLabel: "خاموش‌کردن پلن",
               successMessage: "پلن خاموش شد",
               action: () => authApi(`/api/v1/plans/${selectedPlan.id}`, { method: "DELETE" }),
@@ -2536,16 +2478,16 @@ export default function PrimePanelV2({
       <Modal open={modal === "connection-create"} title="افزودن PasarGuard" onClose={() => setModal(null)}>
         <form className="v2Form primeConnectionCreateForm" onSubmit={createConnection}>
           <label>نام اتصال<input value={connectionForm.name} onChange={(e) => setConnectionForm({ ...connectionForm, name: e.target.value })} required /></label>
-          <label>Panel URL<input placeholder="https://panel.example.com" value={connectionForm.base_url} onChange={(e) => setConnectionForm({ ...connectionForm, base_url: e.target.value })} required /></label>
-          <label>API Token<input type="password" value={connectionForm.api_token} onChange={(e) => setConnectionForm({ ...connectionForm, api_token: e.target.value })} required /></label>
+          <label>آدرس پنل<input placeholder="https://panel.example.com" value={connectionForm.base_url} onChange={(e) => setConnectionForm({ ...connectionForm, base_url: e.target.value })} required /></label>
+          <label>توکن API<input type="password" value={connectionForm.api_token} onChange={(e) => setConnectionForm({ ...connectionForm, api_token: e.target.value })} required /></label>
           <button className="v2Primary">تست و اضافه‌کردن</button>
         </form>
       </Modal>
 
       <Modal open={modal === "connection-manage" && Boolean(selectedConnection)} title={selectedConnection?.name || "PasarGuard"} onClose={() => setModal(null)}>
         {selectedConnection && <div className="v2ActionGrid">
-          <button onClick={() => run(() => authApi(`/api/v1/connections/${selectedConnection.id}/test`, { method: "POST" }), "اتصال سالم است")}>Test Connection</button>
-          <button onClick={() => run(() => authApi(`/api/v1/connections/${selectedConnection.id}/sync-groups`, { method: "POST" }), "Groupها Sync شدند")}>Sync Groups</button>
+          <button onClick={() => run(() => authApi(`/api/v1/connections/${selectedConnection.id}/test`, { method: "POST" }), "اتصال سالم است")}>تست اتصال</button>
+          <button onClick={() => run(() => authApi(`/api/v1/connections/${selectedConnection.id}/sync-groups`, { method: "POST" }), "Groupها Sync شدند")}>همگام‌سازی گروه‌ها</button>
           <button onClick={() => openConnectionEdit(selectedConnection)}>ویرایش اتصال</button>
           <button className="v2Danger" onClick={() => openConfirmAction({
             title: "غیرفعال‌کردن اتصال",
@@ -2560,7 +2502,7 @@ export default function PrimePanelV2({
       <Modal open={modal === "bot-create"} title="ساخت ربات فروش" onClose={() => setModal(null)}>
         <form className="v2Form primeBotCreateForm" onSubmit={createBot}>
           <label>نام ربات<input value={botForm.name} onChange={(e) => setBotForm({ ...botForm, name: e.target.value })} required /></label>
-          <label>Bot Token<input type="password" value={botForm.token} onChange={(e) => setBotForm({ ...botForm, token: e.target.value })} required /></label>
+          <label>توکن ربات<input type="password" value={botForm.token} onChange={(e) => setBotForm({ ...botForm, token: e.target.value })} required /></label>
           {user.role === "owner" && <div className="v2Picker">
             <label>جستجوی نماینده
               <div className="v2PickerSearch"><input value={adminPickerSearch} onChange={(e) => setAdminPickerSearch(e.target.value)} placeholder="نام کاربری نماینده" /><button type="button" onClick={() => searchAdminOptions()}>جستجو</button></div>
@@ -2584,40 +2526,38 @@ export default function PrimePanelV2({
       <Modal open={modal === "bot-manage" && Boolean(selectedBot)} title={selectedBot ? `مدیریت ${selectedBot.name}` : "مدیریت ربات"} onClose={() => setModal(null)} wide>
         {selectedBot && <div className="v2Stack">
           <section className="v2Metrics compact">
-            <article className="v2Metric"><span>Username</span><strong>@{selectedBot.username || "—"}</strong><small>{selectedBot.enabled ? "فعال" : "خاموش"}</small></article>
-            <article className="v2Metric"><span>روش‌های پرداخت</span><strong>{[selectedBot.customer_wallet_enabled && "Wallet", selectedBot.card_to_card_enabled && "Card", selectedBot.gateway_enabled && "Gateway"].filter(Boolean).join(" + ") || "هیچ"}</strong><small>قابل تغییر</small></article>
+            <article className="v2Metric"><span>نام کاربری ربات</span><strong>@{selectedBot.username || "—"}</strong><small>{selectedBot.enabled ? "فعال" : "خاموش"}</small></article>
+            <article className="v2Metric"><span>روش‌های پرداخت</span><strong>{[
+              selectedBot.customer_wallet_enabled && "کیف پول",
+              selectedBot.card_to_card_enabled && "کارت‌به‌کارت",
+              selectedBot.gateway_enabled && "درگاه",
+            ].filter(Boolean).join(" + ") || "هیچ"}</strong><small>از همین بخش قابل مدیریت است</small></article>
           </section>
+          <article className="v2Card nested primeBotSyncCard">
+            <div className="v2CardHead">
+              <div>
+                <strong>پلن‌های فروش ربات</strong>
+                <span>پلن‌های فعال مالک به‌صورت خودکار در ربات نمایش داده می‌شوند و نماینده فقط قیمت فروش را تعیین می‌کند.</span>
+              </div>
+            </div>
+            <div className="primeBotSyncState">
+              <ShieldCheck size={25} />
+              <div><strong>همگام‌سازی خودکار فعال است</strong><span>نیازی به انتخاب یا حذف دستی پلن برای این ربات نیست.</span></div>
+            </div>
+          </article>
           <div className="v2ActionGrid">
-            <button onClick={() => run(() => authApi(`/api/v1/bots/${selectedBot.id}`, { method: "PATCH", body: JSON.stringify({ customer_wallet_enabled: !selectedBot.customer_wallet_enabled }) }), "Wallet تغییر کرد")}>Wallet {selectedBot.customer_wallet_enabled ? "ON" : "OFF"}</button>
-            <button onClick={() => run(() => authApi(`/api/v1/bots/${selectedBot.id}`, { method: "PATCH", body: JSON.stringify({ card_to_card_enabled: !selectedBot.card_to_card_enabled }) }), "Card تغییر کرد")}>Card {selectedBot.card_to_card_enabled ? "ON" : "OFF"}</button>
-            <button onClick={() => run(() => authApi(`/api/v1/bots/${selectedBot.id}`, { method: "PATCH", body: JSON.stringify({ gateway_enabled: !selectedBot.gateway_enabled }) }), "Gateway تغییر کرد")}>Gateway {selectedBot.gateway_enabled ? "ON" : "OFF"}</button>
-            <button onClick={() => openBotEdit(selectedBot)}>نام / Token</button>
+            <button onClick={() => run(() => authApi(`/api/v1/bots/${selectedBot.id}`, { method: "PATCH", body: JSON.stringify({ customer_wallet_enabled: !selectedBot.customer_wallet_enabled }) }), "وضعیت کیف پول تغییر کرد")}>کیف پول: {selectedBot.customer_wallet_enabled ? "فعال" : "خاموش"}</button>
+            <button onClick={() => run(() => authApi(`/api/v1/bots/${selectedBot.id}`, { method: "PATCH", body: JSON.stringify({ card_to_card_enabled: !selectedBot.card_to_card_enabled }) }), "وضعیت کارت‌به‌کارت تغییر کرد")}>کارت‌به‌کارت: {selectedBot.card_to_card_enabled ? "فعال" : "خاموش"}</button>
+            <button onClick={() => run(() => authApi(`/api/v1/bots/${selectedBot.id}`, { method: "PATCH", body: JSON.stringify({ gateway_enabled: !selectedBot.gateway_enabled }) }), "وضعیت درگاه تغییر کرد")}>درگاه: {selectedBot.gateway_enabled ? "فعال" : "خاموش"}</button>
+            <button onClick={() => openBotEdit(selectedBot)}>نام و توکن</button>
             <button className="v2Danger" onClick={() => openConfirmAction({
               title: "خاموش‌کردن ربات",
-              description: `ربات «${selectedBot.name}» خاموش شود؟ Webhook آن نیز غیرفعال می‌شود.`,
+              description: `ربات «${selectedBot.name}» خاموش شود؟ اتصال Webhook آن نیز غیرفعال می‌شود.`,
               submitLabel: "خاموش‌کردن ربات",
               successMessage: "ربات خاموش شد",
               action: () => authApi(`/api/v1/bots/${selectedBot.id}`, { method: "DELETE" }),
             })}>خاموش‌کردن</button>
           </div>
-          <article className="v2Card nested">
-            <div className="v2CardHead"><div><strong>کاتالوگ همین ربات</strong><span>فقط پلن‌های انتخاب‌شده در این Bot نمایش داده می‌شوند</span></div></div>
-            <div className="v2Catalog">
-              {botCatalog.map((p) => (
-                <label key={p.plan_id}>
-                  <input
-                    type="checkbox"
-                    checked={botCatalogSelection.includes(p.plan_id)}
-                    onChange={(e) => setBotCatalogSelection((old) =>
-                      e.target.checked ? [...old, p.plan_id] : old.filter((id) => id !== p.plan_id)
-                    )}
-                  />
-                  <div><strong>{p.name}</strong><span>{money(p.retail_price_per_gib_toman)} / GB</span></div>
-                </label>
-              ))}
-            </div>
-            <button className="v2Primary" onClick={saveBotCatalog}>ذخیره کاتالوگ ربات</button>
-          </article>
         </div>}
       </Modal>
 
