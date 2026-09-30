@@ -325,8 +325,11 @@ async def list_admins(
             "id": str(admin.id),
             "username": admin.username,
             "display_name": admin.display_name,
+            "telegram_id": admin.telegram_id,
             "status": admin.status.value,
             "wallet_balance_toman": str(wallet.balance_toman if wallet else 0),
+            "low_balance_threshold_toman": str(wallet.low_balance_threshold_toman if wallet else 0),
+            "debt_limit_toman": str(wallet.debt_limit_toman if wallet else 0),
         })
     return result
 
