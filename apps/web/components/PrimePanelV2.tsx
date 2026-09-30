@@ -152,6 +152,16 @@ type BotRow = {
   created_at?: string;
 };
 
+type AdminPlanAssignment = {
+  assignment_id: string;
+  plan_id: string;
+  name: string;
+  enabled: boolean;
+  bot_visible: boolean;
+  base_price_per_gib_toman: string;
+  retail_price_per_gib_toman: string;
+};
+
 type BotCatalogRow = {
   plan_id: string;
   name: string;
@@ -445,6 +455,8 @@ export default function PrimePanelV2({
   const [accent, setAccent] = useState<"cyan" | "violet" | "emerald" | "orange">("cyan");
   const [botCatalog, setBotCatalog] = useState<BotCatalogRow[]>([]);
   const [botCatalogSelection, setBotCatalogSelection] = useState<string[]>([]);
+  const [adminAssignments, setAdminAssignments] = useState<AdminPlanAssignment[]>([]);
+  const [clientPlanOptions, setClientPlanOptions] = useState<PlanRow[]>([]);
   const [backupFile, setBackupFile] = useState<File | null>(null);
   const [walletTopup, setWalletTopup] = useState("100000");
   const [walletReceipt, setWalletReceipt] = useState<File | null>(null);
@@ -775,6 +787,32 @@ export default function PrimePanelV2({
     setCardForm({ title: "کارت اصلی", card_number: "", card_holder_name: "", instructions: "", is_default: bankCards.length === 0 });
   }
 
+  async function openAdminManage(admin: AdminRow) {
+    setSelectedId(admin.id);
+    const data = await safe(() => authApi<AdminPlanAssignment[]>(`/api/v1/admins/${admin.id}/plans`));
+    setAdminAssignments(data || []);
+    setModal("admin-manage");
+  }
+
+  async function chooseClientAdmin(adminId: string) {
+    setClientForm((old) => ({ ...old, admin_id: adminId, plan_id: "" }));
+    if (!adminId) {
+      setClientPlanOptions([]);
+      return;
+    }
+    const data = await safe(() => authApi<AdminPlanAssignment[]>(`/api/v1/admins/${adminId}/plans`));
+    if (!data) return;
+    const enabled = data.filter((x) => x.enabled);
+    setClientPlanOptions(enabled.map((x) => ({
+      id: x.plan_id,
+      name: x.name,
+      group_id: "",
+      enabled: x.enabled,
+      base_price_per_gib_toman: x.base_price_per_gib_toman,
+      retail_price_per_gib_toman: x.retail_price_per_gib_toman,
+    })));
+  }
+
   async function openBotManage(bot: BotRow) {
     setSelectedId(bot.id);
     const data = await safe(() => authApi<BotCatalogRow[]>(`/api/v1/bots/${bot.id}/catalog`));
@@ -938,7 +976,7 @@ export default function PrimePanelV2({
                 <span>{a.client_count.toLocaleString("fa-IR")}</span>
                 <span>{money(a.wallet_balance_toman)}</span>
                 <span className={a.status === "active" ? "v2Badge ok" : "v2Badge off"}>{a.status}</span>
-                <button className="v2More" onClick={() => { setSelectedId(a.id); setModal("admin-manage"); }}><MoreVertical size={18} /></button>
+                <button className="v2More" onClick={() => openAdminManage(a)}><MoreVertical size={18} /></button>
               </div>
             ))}
             {!adminsPage.items.length && <Empty text="نماینده‌ای پیدا نشد." />}
@@ -1458,6 +1496,16 @@ export default function PrimePanelV2({
             <article className="v2Metric"><span>کیف پول</span><strong>{money(selectedAdmin.wallet_balance_toman)}</strong><small>{selectedAdmin.client_count} کلاینت</small></article>
             <article className="v2Metric"><span>وضعیت</span><strong>{selectedAdmin.status}</strong><small>{selectedAdmin.telegram_id || "Telegram ID ندارد"}</small></article>
           </section>
+          <article className="v2Card nested">
+            <div className="v2CardHead"><div><strong>پلن‌های نماینده</strong><span>${adminAssignments.length} تخصیص</span></div></div>
+            <div className="v2Catalog">
+              {adminAssignments.map((p) => <div className="v2CatalogRow" key={p.assignment_id}>
+                <div><strong>{p.name}</strong><span>{money(p.retail_price_per_gib_toman)} / GB</span></div>
+                <button className="danger" onClick={() => run(() => authApi(`/api/v1/admins/${selectedAdmin.id}/plans/${p.plan_id}`, { method: "DELETE" }), "پلن از نماینده حذف شد")}>حذف دسترسی</button>
+              </div>)}
+              {!adminAssignments.length && <Empty text="پلنی تخصیص داده نشده." />}
+            </div>
+          </article>
           <div className="v2ActionGrid">
             <button onClick={() => {
               const amount = window.prompt("مبلغ شارژ تومان:");
@@ -1497,13 +1545,13 @@ export default function PrimePanelV2({
               <div className="v2PickerSearch"><input value={adminPickerSearch} onChange={(e) => setAdminPickerSearch(e.target.value)} placeholder="نام کاربری یا نام نماینده" /><button type="button" onClick={() => searchAdminOptions()}>جستجو</button></div>
             </label>
             <label>نماینده
-              <select value={clientForm.admin_id} onChange={(e) => setClientForm({ ...clientForm, admin_id: e.target.value })} required>
+              <select value={clientForm.admin_id} onChange={(e) => chooseClientAdmin(e.target.value)} required>
                 <option value="">انتخاب نماینده</option>
                 {adminOptions.map((a) => <option key={a.id} value={a.id}>{a.display_name || a.username} (@{a.username})</option>)}
               </select>
             </label>
           </div>}
-          <label>پلن<select value={clientForm.plan_id} onChange={(e) => setClientForm({ ...clientForm, plan_id: e.target.value })} required><option value="">انتخاب پلن</option>{plans.filter((p) => p.enabled !== false).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
+          <label>پلن<select value={clientForm.plan_id} onChange={(e) => setClientForm({ ...clientForm, plan_id: e.target.value })} required><option value="">انتخاب پلن</option>{(user.role === "owner" ? clientPlanOptions : plans).filter((p) => p.enabled !== false).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
           <label>حجم GB<input type="number" step="0.1" value={clientForm.quota_gib} onChange={(e) => setClientForm({ ...clientForm, quota_gib: e.target.value })} required /></label>
           <label>مدت روز<input type="number" value={clientForm.duration_days} onChange={(e) => setClientForm({ ...clientForm, duration_days: e.target.value })} /></label>
           <label>تعداد دستگاه<input type="number" value={clientForm.hwid_limit} onChange={(e) => setClientForm({ ...clientForm, hwid_limit: e.target.value })} /></label>
