@@ -1062,6 +1062,30 @@ export default function PrimePanelV2({
     }
   }
 
+  function openConfirmAction({
+    title,
+    description,
+    submitLabel,
+    successMessage,
+    action,
+  }: {
+    title: string;
+    description: string;
+    submitLabel: string;
+    successMessage: string;
+    action: () => Promise<unknown>;
+  }) {
+    openActionDialog({
+      title,
+      description,
+      fields: [],
+      submitLabel,
+      destructive: true,
+      successMessage,
+      onSubmit: action,
+    });
+  }
+
   function openAdminWalletTopup(admin: AdminRow) {
     openActionDialog({
       title: "شارژ کیف پول نماینده",
@@ -1864,7 +1888,16 @@ export default function PrimePanelV2({
                         {payment.method === "card_to_card" && <button onClick={() => viewReceipt(payment.id)}>رسید</button>}
                         {payment.status === "awaiting_review" && (user.role === "owner" || payment.purpose !== "admin_wallet_topup") && <>
                           <button className="ok" onClick={() => reviewPayment(payment, true)}><Check size={14} /></button>
-                          <button className="danger" onClick={() => reviewPayment(payment, false)}><X size={14} /></button>
+                          <button className="danger" onClick={() => openConfirmAction({
+                            title: "رد پرداخت",
+                            description: `پرداخت ${money(payment.amount_toman)} رد شود؟`,
+                            submitLabel: "رد پرداخت",
+                            successMessage: "پرداخت رد شد",
+                            action: () => authApi(`/api/v1/payments/${payment.id}/review`, {
+                              method: "POST",
+                              body: JSON.stringify({ approved: false, note: "Rejected from panel" }),
+                            }),
+                          })}><X size={14} /></button>
                         </>}
                       </div>
                     </div>
@@ -2116,7 +2149,13 @@ export default function PrimePanelV2({
                     <small>{card.card_holder_name || "—"}</small>
                     <div>
                       {!card.is_default && <button onClick={() => run(() => authApi(`/api/v1/bank-cards/${card.id}`, { method: "PATCH", body: JSON.stringify({ is_default: true }) }), "کارت پیش‌فرض شد")}>پیش‌فرض</button>}
-                      <button className="danger" onClick={() => run(() => authApi(`/api/v1/bank-cards/${card.id}`, { method: "DELETE" }), "کارت حذف شد")}>حذف</button>
+                      <button className="danger" onClick={() => openConfirmAction({
+                        title: "حذف کارت بانکی",
+                        description: `کارت ${card.title} حذف شود؟`,
+                        submitLabel: "حذف کارت",
+                        successMessage: "کارت حذف شد",
+                        action: () => authApi(`/api/v1/bank-cards/${card.id}`, { method: "DELETE" }),
+                      })}>حذف</button>
                     </div>
                   </div>
                 ))}
@@ -2336,7 +2375,13 @@ export default function PrimePanelV2({
             <div className="v2Catalog">
               {adminAssignments.map((p) => <div className="v2CatalogRow" key={p.assignment_id}>
                 <div><strong>{p.name}</strong><span>{money(p.retail_price_per_gib_toman)} / GB</span></div>
-                <button className="danger" onClick={() => run(() => authApi(`/api/v1/admins/${selectedAdmin.id}/plans/${p.plan_id}`, { method: "DELETE" }), "پلن از نماینده حذف شد")}>حذف دسترسی</button>
+                <button className="danger" onClick={() => openConfirmAction({
+                  title: "حذف دسترسی پلن",
+                  description: `دسترسی نماینده به پلن «${p.name}» حذف شود؟`,
+                  submitLabel: "حذف دسترسی",
+                  successMessage: "پلن از نماینده حذف شد",
+                  action: () => authApi(`/api/v1/admins/${selectedAdmin.id}/plans/${p.plan_id}`, { method: "DELETE" }),
+                })}>حذف دسترسی</button>
               </div>)}
               {!adminAssignments.length && <Empty text="پلنی تخصیص داده نشده." />}
             </div>
@@ -2344,10 +2389,22 @@ export default function PrimePanelV2({
           <div className="v2ActionGrid">
             <button onClick={() => openAdminWalletTopup(selectedAdmin)}>شارژ کیف پول</button>
             <button onClick={() => openAdminEdit(selectedAdmin)}>ویرایش مشخصات</button>
-            <button className="danger" onClick={() => run(() => authApi(`/api/v1/admins/${selectedAdmin.id}`, {
-              method: "PATCH",
-              body: JSON.stringify({ status: selectedAdmin.status === "active" ? "disabled" : "active" }),
-            }), "وضعیت تغییر کرد")}>{selectedAdmin.status === "active" ? "غیرفعال‌کردن" : "فعال‌کردن"}</button>
+            <button className="danger" onClick={() => selectedAdmin.status === "active"
+              ? openConfirmAction({
+                  title: "غیرفعال‌کردن نماینده",
+                  description: `نماینده ${selectedAdmin.display_name || selectedAdmin.username} غیرفعال شود؟`,
+                  submitLabel: "غیرفعال‌کردن",
+                  successMessage: "نماینده غیرفعال شد",
+                  action: () => authApi(`/api/v1/admins/${selectedAdmin.id}`, {
+                    method: "PATCH",
+                    body: JSON.stringify({ status: "disabled" }),
+                  }),
+                })
+              : run(() => authApi(`/api/v1/admins/${selectedAdmin.id}`, {
+                  method: "PATCH",
+                  body: JSON.stringify({ status: "active" }),
+                }), "نماینده فعال شد")
+            }>{selectedAdmin.status === "active" ? "غیرفعال‌کردن" : "فعال‌کردن"}</button>
           </div>
         </div>}
       </Modal>
@@ -2404,10 +2461,22 @@ export default function PrimePanelV2({
             <button onClick={() => openClientEdit(selectedClient)}>ویرایش حجم/مدت/HWID</button>
             <button onClick={() => run(() => authApi(`/api/v1/clients/${selectedClient.id}/reset-usage`, { method: "POST" }), "مصرف Reset شد")}>Reset Usage</button>
             <button onClick={() => run(() => authApi(`/api/v1/clients/${selectedClient.id}/revoke-subscription`, { method: "POST" }), "Subscription عوض شد")}>Revoke Subscription</button>
-            <button className="danger" onClick={() => run(() => authApi(`/api/v1/clients/${selectedClient.id}`, {
-              method: "PATCH",
-              body: JSON.stringify({ disabled: selectedClient.status === "active" }),
-            }), "وضعیت تغییر کرد")}>{selectedClient.status === "active" ? "Disable" : "Enable"}</button>
+            <button className="danger" onClick={() => selectedClient.status === "active"
+              ? openConfirmAction({
+                  title: "غیرفعال‌کردن کلاینت",
+                  description: `کلاینت ${selectedClient.username} غیرفعال شود؟`,
+                  submitLabel: "غیرفعال‌کردن",
+                  successMessage: "کلاینت غیرفعال شد",
+                  action: () => authApi(`/api/v1/clients/${selectedClient.id}`, {
+                    method: "PATCH",
+                    body: JSON.stringify({ disabled: true }),
+                  }),
+                })
+              : run(() => authApi(`/api/v1/clients/${selectedClient.id}`, {
+                  method: "PATCH",
+                  body: JSON.stringify({ disabled: false }),
+                }), "کلاینت فعال شد")
+            }>{selectedClient.status === "active" ? "غیرفعال‌کردن" : "فعال‌کردن"}</button>
           </div>
         </div>}
       </Modal>
@@ -2453,7 +2522,13 @@ export default function PrimePanelV2({
               {!assignmentAdminId && <small className="primeFieldHint">برای ادامه یک نماینده فعال را انتخاب کنید.</small>}
             </div>
             <button onClick={() => openOwnerPlanEdit(selectedPlan)}>ویرایش پلن</button>
-            <button className="v2Danger" onClick={() => run(() => authApi(`/api/v1/plans/${selectedPlan.id}`, { method: "DELETE" }), "پلن خاموش شد")}>خاموش‌کردن پلن</button>
+            <button className="v2Danger" onClick={() => openConfirmAction({
+              title: "خاموش‌کردن پلن",
+              description: `پلن «${selectedPlan.name}» خاموش شود؟`,
+              submitLabel: "خاموش‌کردن پلن",
+              successMessage: "پلن خاموش شد",
+              action: () => authApi(`/api/v1/plans/${selectedPlan.id}`, { method: "DELETE" }),
+            })}>خاموش‌کردن پلن</button>
           </> : <button onClick={() => openRetailPlanEdit(selectedPlan)}>تغییر قیمت فروش</button>}
         </div>}
       </Modal>
@@ -2472,7 +2547,13 @@ export default function PrimePanelV2({
           <button onClick={() => run(() => authApi(`/api/v1/connections/${selectedConnection.id}/test`, { method: "POST" }), "اتصال سالم است")}>Test Connection</button>
           <button onClick={() => run(() => authApi(`/api/v1/connections/${selectedConnection.id}/sync-groups`, { method: "POST" }), "Groupها Sync شدند")}>Sync Groups</button>
           <button onClick={() => openConnectionEdit(selectedConnection)}>ویرایش اتصال</button>
-          <button className="v2Danger" onClick={() => run(() => authApi(`/api/v1/connections/${selectedConnection.id}`, { method: "DELETE" }), "اتصال غیرفعال شد")}>Disable</button>
+          <button className="v2Danger" onClick={() => openConfirmAction({
+            title: "غیرفعال‌کردن اتصال",
+            description: `اتصال PasarGuard «${selectedConnection.name}» غیرفعال شود؟`,
+            submitLabel: "غیرفعال‌کردن",
+            successMessage: "اتصال غیرفعال شد",
+            action: () => authApi(`/api/v1/connections/${selectedConnection.id}`, { method: "DELETE" }),
+          })}>غیرفعال‌کردن</button>
         </div>}
       </Modal>
 
@@ -2511,7 +2592,13 @@ export default function PrimePanelV2({
             <button onClick={() => run(() => authApi(`/api/v1/bots/${selectedBot.id}`, { method: "PATCH", body: JSON.stringify({ card_to_card_enabled: !selectedBot.card_to_card_enabled }) }), "Card تغییر کرد")}>Card {selectedBot.card_to_card_enabled ? "ON" : "OFF"}</button>
             <button onClick={() => run(() => authApi(`/api/v1/bots/${selectedBot.id}`, { method: "PATCH", body: JSON.stringify({ gateway_enabled: !selectedBot.gateway_enabled }) }), "Gateway تغییر کرد")}>Gateway {selectedBot.gateway_enabled ? "ON" : "OFF"}</button>
             <button onClick={() => openBotEdit(selectedBot)}>نام / Token</button>
-            <button className="v2Danger" onClick={() => run(() => authApi(`/api/v1/bots/${selectedBot.id}`, { method: "DELETE" }), "ربات خاموش شد")}>خاموش‌کردن</button>
+            <button className="v2Danger" onClick={() => openConfirmAction({
+              title: "خاموش‌کردن ربات",
+              description: `ربات «${selectedBot.name}» خاموش شود؟ Webhook آن نیز غیرفعال می‌شود.`,
+              submitLabel: "خاموش‌کردن ربات",
+              successMessage: "ربات خاموش شد",
+              action: () => authApi(`/api/v1/bots/${selectedBot.id}`, { method: "DELETE" }),
+            })}>خاموش‌کردن</button>
           </div>
           <article className="v2Card nested">
             <div className="v2CardHead"><div><strong>کاتالوگ همین ربات</strong><span>فقط پلن‌های انتخاب‌شده در این Bot نمایش داده می‌شوند</span></div></div>
