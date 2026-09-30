@@ -63,6 +63,7 @@ class AdminCreateIn(BaseModel):
     username: str = Field(min_length=3, max_length=120)
     password: str = Field(min_length=10, max_length=200)
     display_name: str | None = Field(default=None, max_length=160)
+    telegram_id: int | None = None
     initial_balance_toman: Decimal = Field(default=Decimal("0"), ge=0)
 
 
@@ -344,6 +345,7 @@ async def create_admin(
         password_hash=hash_password(payload.password),
         role=Role.ADMIN,
         display_name=payload.display_name,
+        telegram_id=payload.telegram_id,
     )
     db.add(admin)
     await db.flush()
