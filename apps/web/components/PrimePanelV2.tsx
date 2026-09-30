@@ -116,7 +116,9 @@ type GroupRow = {
 type PaymentRow = {
   id: string;
   admin_id: string;
+  admin_username?: string | null;
   customer_id?: string | null;
+  customer_name?: string | null;
   order_id?: string | null;
   method: string;
   status: string;
@@ -416,6 +418,8 @@ export default function PrimePanelV2({
   const [clientSort, setClientSort] = useState("newest");
   const [paymentStatus, setPaymentStatus] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
+  const [paymentSearch, setPaymentSearch] = useState("");
+  const [paymentDate, setPaymentDate] = useState("");
   const [commerceTab, setCommerceTab] = useState<"payments" | "orders" | "customers">("payments");
   const [customerSearch, setCustomerSearch] = useState("");
 
@@ -595,8 +599,10 @@ export default function PrimePanelV2({
   async function loadPayments(page = paymentsPage.page) {
     const data = await safe(() => authApi<PageResult<PaymentRow>>(
       `/api/v1/directory/payments?${qs({
+        q: paymentSearch,
         status_filter: paymentStatus,
         method: paymentMethod,
+        date_filter: paymentDate,
         page,
         page_size: 25,
       })}`
@@ -1232,59 +1238,93 @@ export default function PrimePanelV2({
 
   function renderPlans() {
     return (
-      <div className="v2Grid">
-        <article className="v2Card v2Span2">
-          <div className="v2CardHead">
-            <div><strong>پلن‌ها</strong><span>قیمت پایه Owner و قیمت فروش نماینده</span></div>
+      <div className="primePlansPage">
+        <section className="primePlanSection">
+          <div className="primePlanSectionHead">
+            <div className="primePlanSectionIcon"><Database size={27} /></div>
+            <div><strong>پلن‌ها</strong><span>پلن‌های Owner و نماینده‌ها تعریف می‌شوند</span></div>
           </div>
-          <div className="v2PlanGrid">
-            {plans.map((p) => (
-              <button
-                className="v2Plan"
-                key={p.id}
-                onClick={async () => {
-                  setSelectedId(p.id);
-                  if (user.role === "owner") await searchAdminOptions("");
-                  setAssignmentPrice(p.base_price_per_gib_toman || "");
-                  setModal("plan-manage");
-                }}
-              >
-                <div><strong>{p.name}</strong><span className={p.enabled === false ? "v2Badge off" : "v2Badge ok"}>{p.enabled === false ? "خاموش" : "فعال"}</span></div>
-                <b>{money(p.retail_price_per_gib_toman || p.base_price_per_gib_toman || p.cost_per_gib_toman)} / GB</b>
-                <small>حداکثر: {p.max_quota_gib || "∞"} GB · {p.max_duration_days || "∞"} روز</small>
-              </button>
-            ))}
-            {!plans.length && <Empty text="پلنی تعریف نشده." />}
+
+          {plans.length ? (
+            <div className="primePlanCards">
+              {plans.map((plan) => (
+                <button
+                  key={plan.id}
+                  className="primePlanCard"
+                  onClick={async () => {
+                    setSelectedId(plan.id);
+                    if (user.role === "owner") await searchAdminOptions("");
+                    setAssignmentPrice(plan.base_price_per_gib_toman || "");
+                    setModal("plan-manage");
+                  }}
+                >
+                  <div><strong>{plan.name}</strong><span className={plan.enabled === false ? "off" : "on"}>{plan.enabled === false ? "خاموش" : "فعال"}</span></div>
+                  <b>{money(plan.retail_price_per_gib_toman || plan.base_price_per_gib_toman || plan.cost_per_gib_toman)} / GB</b>
+                  <small>حداکثر {plan.max_quota_gib || "∞"} GB · {plan.max_duration_days || "∞"} روز</small>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="primePlanEmpty">
+              <span><CreditCard size={43} /></span>
+              <strong>پلنی تعریف نشده</strong>
+              <p>هنوز هیچ پلنی ثبت نشده است.<br />برای شروع روی دکمه «افزودن» کلیک کنید.</p>
+            </div>
+          )}
+        </section>
+
+        <section className="primePlanInfo primePlanGroups">
+          <div className="primePlanSectionHead">
+            <div className="primePlanSectionIcon purple"><Users size={27} /></div>
+            <div><strong>گروه‌ها</strong><span>مدیریت Groupها و هماهنگی با PasarGuard از طریق Sync</span></div>
           </div>
-        </article>
-        <article className="v2Card">
-          <div className="v2CardHead"><div><strong>Groupها</strong><span>Sync شده از PasarGuard</span></div></div>
-          <div className="v2Chips">{groups.map((g) => <span key={g.id}>{g.name} · #{g.remote_group_id}</span>)}</div>
-        </article>
-        <article className="v2Card">
-          <div className="v2CardHead"><div><strong>قانون فروش</strong><span>نماینده فقط Plan تخصیص داده‌شده را می‌بیند</span></div></div>
-          <div className="v2Info">
-            <p>قیمت فروش نماینده نمی‌تواند از قیمت پایه Owner پایین‌تر باشد.</p>
-            <p>Billing کیف پول نماینده بر اساس مصرف واقعی Lifetime انجام می‌شود، نه حجم ساخته‌شده.</p>
+          <div className="primePlanInfoBody">
+            <div className="primePlanInfoVisual"><Users size={54} /></div>
+            <div>
+              <strong>گروه‌های کاربری را ایجاد و مدیریت کنید.</strong>
+              <p>اطلاعات گروه‌ها با سرویس PasarGuard از طریق Sync همگام‌سازی می‌شود.</p>
+              {groups.length > 0 && (
+                <div className="primePlanGroupChips">
+                  {groups.slice(0, 8).map((group) => <span key={group.id}>{group.name}</span>)}
+                </div>
+              )}
+            </div>
           </div>
-        </article>
+        </section>
+
+        <section className="primePlanInfo primePlanRules">
+          <div className="primePlanSectionHead">
+            <div className="primePlanSectionIcon pink"><Settings size={27} /></div>
+            <div><strong>قانون فروش</strong><span>قوانین پیش‌فرض فروش و محدودیت‌ها</span></div>
+          </div>
+          <div className="primePlanInfoBody">
+            <div className="primePlanInfoVisual"><Settings size={52} /></div>
+            <div>
+              <p>شما می‌توانید محدودیت‌ها و قوانین پیش‌فرض فروش را تنظیم کنید.</p>
+              <p>این قانون مشخص می‌کند کاربر Owner یا نماینده در زمان خرید چه پلن‌هایی مجاز است و محاسبه مصرف چگونه انجام شود.</p>
+            </div>
+          </div>
+        </section>
       </div>
     );
   }
 
   function renderWallet() {
     return (
-      <div className="v2Stack">
-        <section className="v2Metrics">
-          <article className="v2Metric v2Balance">
-            <span>موجودی کیف پول</span>
+      <div className="primeWalletPage">
+        <section className="primeWalletBalance">
+          <div className="primeWalletBalanceIcon"><WalletCards size={38} /></div>
+          <div>
+            <span>موجودی کل</span>
             <strong>{money(summary?.wallet_balance_toman)}</strong>
-            <small>Ledger منبع اصلی حسابداری است</small>
-          </article>
+            <small>مجموع موجودی کیف پول شما</small>
+          </div>
+          <i />
         </section>
+
         {user.role === "admin" && (
-          <article className="v2Card">
-            <div className="v2CardHead"><div><strong>شارژ کیف پول</strong><span>درگاه و کارت‌به‌کارت مستقل</span></div></div>
+          <section className="primeWalletTopup">
+            <div className="primeWalletSectionHead"><strong>شارژ کیف پول</strong><span>درگاه و کارت‌به‌کارت</span></div>
             <div className="v2PaymentActions">
               <button onClick={() => run(async () => {
                 const result = await authApi<{ redirect_url: string }>("/api/v1/wallet/topups/gateway", {
@@ -1293,14 +1333,8 @@ export default function PrimePanelV2({
                 });
                 window.open(result.redirect_url, "_blank", "noopener,noreferrer");
               }, "لینک درگاه ساخته شد")}>زرین‌پال</button>
-              <label>
-                مبلغ
-                <input type="number" value={walletTopup} onChange={(e) => setWalletTopup(e.target.value)} />
-              </label>
-              <label>
-                رسید کارت‌به‌کارت
-                <input type="file" accept="image/*,.pdf" onChange={(e) => setWalletReceipt(e.target.files?.[0] || null)} />
-              </label>
+              <label>مبلغ<input type="number" value={walletTopup} onChange={(e) => setWalletTopup(e.target.value)} /></label>
+              <label>رسید کارت‌به‌کارت<input type="file" accept="image/*,.pdf" onChange={(e) => setWalletReceipt(e.target.files?.[0] || null)} /></label>
               <button onClick={() => {
                 if (!walletReceipt) return setError("رسید را انتخاب کنید");
                 const fd = new FormData();
@@ -1309,114 +1343,199 @@ export default function PrimePanelV2({
                 run(() => authApi("/api/v1/wallet/topups/card", { method: "POST", body: fd }), "رسید ارسال شد");
               }}>ارسال رسید کارت</button>
             </div>
-          </article>
+          </section>
         )}
-        <article className="v2Card v2TableCard">
-          <div className="v2CardHead"><div><strong>گردش کیف پول</strong><span>آخرین ۱۰۰ تراکنش</span></div></div>
-          <div className="v2Table">
-            <div className="v2Tr v2Th"><span>نوع</span><span>مبلغ</span><span>مانده</span><span>تاریخ</span></div>
-            {transactions.map((t) => (
-              <div className="v2Tr" key={t.id}>
-                <div><strong>{t.type}</strong><small>{t.description || "—"}</small></div>
-                <span className={Number(t.amount_toman) >= 0 ? "v2Positive" : "v2Negative"}>{money(t.amount_toman)}</span>
-                <span>{money(t.balance_after_toman)}</span>
-                <span>{dt(t.created_at)}</span>
-              </div>
-            ))}
+
+        <section className="primeWalletLedger">
+          <div className="primeWalletSectionHead icon">
+            <div className="primeWalletLedgerIcon"><CreditCard size={24} /></div>
+            <div><strong>گردش کیف پول</strong><span>آخرین {transactions.length.toLocaleString("fa-IR")} تراکنش</span></div>
           </div>
-        </article>
+
+          <div className="primeWalletTableHead">
+            <span>نوع</span><span>مبلغ</span><span>زمان</span><span>توضیحات</span>
+          </div>
+
+          {transactions.length ? (
+            <div className="primeWalletRows">
+              {transactions.map((transaction) => (
+                <div className="primeWalletRow" key={transaction.id}>
+                  <span>{transaction.type}</span>
+                  <strong className={Number(transaction.amount_toman) >= 0 ? "plus" : "minus"}>{money(transaction.amount_toman)}</strong>
+                  <span>{dt(transaction.created_at)}</span>
+                  <span>{transaction.description || "—"}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="primeWalletEmpty">
+              <span><CreditCard size={43} /></span>
+              <strong>تراکنشی یافت نشد</strong>
+              <p>هنوز هیچ تراکنشی در کیف پول شما ثبت نشده است.</p>
+            </div>
+          )}
+        </section>
       </div>
     );
   }
 
   function renderCommerce() {
     return (
-      <div className="v2Stack">
-        <div className="v2Tabs">
-          <button className={commerceTab === "payments" ? "active" : ""} onClick={() => setCommerceTab("payments")}>پرداخت‌ها</button>
-          <button className={commerceTab === "orders" ? "active" : ""} onClick={() => setCommerceTab("orders")}>سفارش‌ها</button>
-          <button className={commerceTab === "customers" ? "active" : ""} onClick={() => setCommerceTab("customers")}>مشتری‌ها</button>
+      <div className="primeCommercePage">
+        <div className="primeCommerceTabs">
+          <button className={commerceTab === "payments" ? "active" : ""} onClick={() => setCommerceTab("payments")}><CreditCard size={19} />پرداخت‌ها</button>
+          <button className={commerceTab === "orders" ? "active" : ""} onClick={() => setCommerceTab("orders")}><Boxes size={19} />سفارش‌ها</button>
+          <button className={commerceTab === "customers" ? "active" : ""} onClick={() => setCommerceTab("customers")}><Users size={19} />مشتری‌ها</button>
         </div>
 
-        {commerceTab === "payments" && <>
-          <Toolbar search="" onSearch={() => {}} placeholder="پرداخت‌ها">
-            <select value={paymentStatus} onChange={(e) => setPaymentStatus(e.target.value)}>
-              <option value="">همه وضعیت‌ها</option>
-              <option value="pending">pending</option>
-              <option value="awaiting_review">awaiting_review</option>
-              <option value="paid">paid</option>
-              <option value="rejected">rejected</option>
-              <option value="failed">failed</option>
-            </select>
-            <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
-              <option value="">همه روش‌ها</option>
-              <option value="gateway">درگاه</option>
-              <option value="card_to_card">کارت‌به‌کارت</option>
-              <option value="customer_wallet">کیف پول مشتری</option>
-            </select>
-            <button onClick={() => loadPayments(1)}>اعمال</button>
-          </Toolbar>
-          <article className="v2Card v2TableCard">
-            <div className="v2Table">
-              <div className="v2Tr v2Th"><span>مبلغ</span><span>روش</span><span>وضعیت</span><span>کاربرد</span><span>تاریخ</span><span /></div>
-              {paymentsPage.items.map((p) => (
-                <div className="v2Tr" key={p.id}>
-                  <strong>{money(p.amount_toman)}</strong>
-                  <span>{p.method}</span>
-                  <span className={p.status === "paid" ? "v2Badge ok" : p.status === "awaiting_review" ? "v2Badge wait" : "v2Badge"}>{p.status}</span>
-                  <span>{p.purpose || "payment"}</span>
-                  <span>{dt(p.created_at)}</span>
-                  <div className="v2Inline">
-                    {p.method === "card_to_card" && <button onClick={() => viewReceipt(p.id)}>رسید</button>}
-                    {p.status === "awaiting_review" && (user.role === "owner" || p.purpose !== "admin_wallet_topup") && <>
-                      <button className="ok" onClick={() => reviewPayment(p, true)}><Check size={14} /></button>
-                      <button className="danger" onClick={() => reviewPayment(p, false)}><X size={14} /></button>
-                    </>}
-                  </div>
-                </div>
-              ))}
+        {commerceTab === "payments" && (
+          <section className="primeCommercePanel">
+            <div className="primeCommerceSearch">
+              <button onClick={() => loadPayments(1)}><Search size={24} /></button>
+              <input
+                value={paymentSearch}
+                onChange={(e) => setPaymentSearch(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && loadPayments(1)}
+                placeholder="جستجو در پرداخت‌ها"
+              />
+              <i />
             </div>
-            <Pager page={paymentsPage.page} pages={paymentsPage.pages} total={paymentsPage.total} onPage={loadPayments} />
-          </article>
-        </>}
 
-        {commerceTab === "orders" && (
-          <article className="v2Card v2TableCard">
-            <div className="v2Table">
-              <div className="v2Tr v2Th"><span>سفارش</span><span>حجم</span><span>مبلغ</span><span>پرداخت</span><span>وضعیت</span></div>
-              {ordersPage.items.map((o) => (
-                <div className="v2Tr" key={o.id}>
-                  <div><strong>{o.id.slice(0, 8)}</strong><small>{dt(o.created_at)}</small></div>
-                  <span>{gib(o.quota_bytes)}</span>
-                  <span>{money(o.retail_amount_toman)}</span>
-                  <span>{o.payment_method}</span>
-                  <span className="v2Badge">{o.status}</span>
-                </div>
-              ))}
+            <div className="primeCommerceFilters">
+              <label>
+                <select value={paymentStatus} onChange={(e) => setPaymentStatus(e.target.value)}>
+                  <option value="">همه وضعیت‌ها</option>
+                  <option value="pending">در انتظار</option>
+                  <option value="awaiting_review">نیازمند بررسی</option>
+                  <option value="paid">پرداخت‌شده</option>
+                  <option value="rejected">ردشده</option>
+                  <option value="failed">ناموفق</option>
+                </select>
+                <ChevronLeft size={17} />
+              </label>
+              <label>
+                <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
+                  <option value="">همه روش‌ها</option>
+                  <option value="gateway">درگاه</option>
+                  <option value="card_to_card">کارت‌به‌کارت</option>
+                  <option value="customer_wallet">کیف پول مشتری</option>
+                </select>
+                <ChevronLeft size={17} />
+              </label>
+              <label>
+                <select value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)}>
+                  <option value="">همه تاریخ‌ها</option>
+                  <option value="today">امروز</option>
+                </select>
+                <ChevronLeft size={17} />
+              </label>
+              <button onClick={() => loadPayments(1)}>اعمال</button>
             </div>
-            <Pager page={ordersPage.page} pages={ordersPage.pages} total={ordersPage.total} onPage={loadOrders} />
-          </article>
+
+            <div className="primeCommerceTable">
+              <div className="primeCommerceTableHead">
+                <span>مبلغ</span><span>روش</span><span>کاربر</span><span>تاریخ</span><span>توضیحات</span>
+              </div>
+              <div className="primeCommerceTableBody">
+                {paymentsPage.items.map((payment) => (
+                  <div className="primeCommerceRow" key={payment.id}>
+                    <strong>{money(payment.amount_toman)}</strong>
+                    <span>{payment.method}</span>
+                    <span>{payment.customer_name || payment.admin_username || "—"}</span>
+                    <span>{dt(payment.created_at)}</span>
+                    <div>
+                      <span>{payment.purpose || payment.status}</span>
+                      <div className="v2Inline">
+                        {payment.method === "card_to_card" && <button onClick={() => viewReceipt(payment.id)}>رسید</button>}
+                        {payment.status === "awaiting_review" && (user.role === "owner" || payment.purpose !== "admin_wallet_topup") && <>
+                          <button className="ok" onClick={() => reviewPayment(payment, true)}><Check size={14} /></button>
+                          <button className="danger" onClick={() => reviewPayment(payment, false)}><X size={14} /></button>
+                        </>}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                {!paymentsPage.items.length && (
+                  <div className="primeCommerceEmpty">
+                    <span><CreditCard size={47} /></span>
+                    <strong>پرداختی ثبت نشده است</strong>
+                    <p>هنوز هیچ پرداختی در سیستم ثبت نشده است.</p>
+                  </div>
+                )}
+              </div>
+              <div className="primeCommercePager">
+                <span>{paymentsPage.total.toLocaleString("fa-IR")} ردیف</span>
+                <div>
+                  <button disabled={paymentsPage.page <= 1} onClick={() => loadPayments(paymentsPage.page - 1)}><ChevronRight size={21} /></button>
+                  <b>{paymentsPage.page.toLocaleString("fa-IR")} / {Math.max(paymentsPage.pages, 1).toLocaleString("fa-IR")}</b>
+                  <button disabled={paymentsPage.page >= paymentsPage.pages} onClick={() => loadPayments(paymentsPage.page + 1)}><ChevronLeft size={21} /></button>
+                </div>
+              </div>
+            </div>
+          </section>
         )}
 
-        {commerceTab === "customers" && <>
-          <Toolbar search={customerSearch} onSearch={setCustomerSearch} placeholder="جستجوی مشتری">
-            <button onClick={() => loadCustomers(1)}>جستجو</button>
-          </Toolbar>
-          <article className="v2Card v2TableCard">
-            <div className="v2Table">
-              <div className="v2Tr v2Th"><span>مشتری</span><span>Telegram</span><span>کیف پول</span><span>تاریخ عضویت</span></div>
-              {customersPage.items.map((c) => (
-                <div className="v2Tr" key={c.id}>
-                  <div><strong>{c.display_name || c.username || "بدون نام"}</strong><small>@{c.username || "—"}</small></div>
-                  <span>{c.telegram_user_id || "—"}</span>
-                  <span>{money(c.wallet_balance_toman)}</span>
-                  <span>{dt(c.created_at)}</span>
+        {commerceTab === "orders" && (
+          <section className="primeCommercePanel">
+            <div className="primeCommerceTable">
+              <div className="primeCommerceTableHead"><span>سفارش</span><span>حجم</span><span>مبلغ</span><span>پرداخت</span><span>وضعیت</span></div>
+              <div className="primeCommerceTableBody">
+                {ordersPage.items.map((order) => (
+                  <div className="primeCommerceRow" key={order.id}>
+                    <div><strong>{order.id.slice(0, 8)}</strong><small>{dt(order.created_at)}</small></div>
+                    <span>{gib(order.quota_bytes)}</span>
+                    <strong>{money(order.retail_amount_toman)}</strong>
+                    <span>{order.payment_method}</span>
+                    <span>{order.status}</span>
+                  </div>
+                ))}
+                {!ordersPage.items.length && <div className="primeCommerceEmpty"><span><Boxes size={47} /></span><strong>سفارشی ثبت نشده است</strong><p>هنوز سفارشی در سیستم ثبت نشده است.</p></div>}
+              </div>
+              <div className="primeCommercePager">
+                <span>{ordersPage.total.toLocaleString("fa-IR")} ردیف</span>
+                <div>
+                  <button disabled={ordersPage.page <= 1} onClick={() => loadOrders(ordersPage.page - 1)}><ChevronRight size={21} /></button>
+                  <b>{ordersPage.page.toLocaleString("fa-IR")} / {Math.max(ordersPage.pages, 1).toLocaleString("fa-IR")}</b>
+                  <button disabled={ordersPage.page >= ordersPage.pages} onClick={() => loadOrders(ordersPage.page + 1)}><ChevronLeft size={21} /></button>
                 </div>
-              ))}
+              </div>
             </div>
-            <Pager page={customersPage.page} pages={customersPage.pages} total={customersPage.total} onPage={loadCustomers} />
-          </article>
-        </>}
+          </section>
+        )}
+
+        {commerceTab === "customers" && (
+          <section className="primeCommercePanel">
+            <div className="primeCommerceSearch">
+              <button onClick={() => loadCustomers(1)}><Search size={24} /></button>
+              <input value={customerSearch} onChange={(e) => setCustomerSearch(e.target.value)} placeholder="جستجوی مشتری" />
+              <i />
+            </div>
+            <div className="primeCommerceTable">
+              <div className="primeCommerceTableHead"><span>مشتری</span><span>Telegram</span><span>کیف پول</span><span>تاریخ عضویت</span><span>وضعیت</span></div>
+              <div className="primeCommerceTableBody">
+                {customersPage.items.map((customer) => (
+                  <div className="primeCommerceRow" key={customer.id}>
+                    <div><strong>{customer.display_name || customer.username || "بدون نام"}</strong><small>@{customer.username || "—"}</small></div>
+                    <span>{customer.telegram_user_id || "—"}</span>
+                    <strong>{money(customer.wallet_balance_toman)}</strong>
+                    <span>{dt(customer.created_at)}</span>
+                    <span>فعال</span>
+                  </div>
+                ))}
+                {!customersPage.items.length && <div className="primeCommerceEmpty"><span><Users size={47} /></span><strong>مشتری ثبت نشده است</strong><p>هنوز مشتری‌ای در سیستم ثبت نشده است.</p></div>}
+              </div>
+              <div className="primeCommercePager">
+                <span>{customersPage.total.toLocaleString("fa-IR")} ردیف</span>
+                <div>
+                  <button disabled={customersPage.page <= 1} onClick={() => loadCustomers(customersPage.page - 1)}><ChevronRight size={21} /></button>
+                  <b>{customersPage.page.toLocaleString("fa-IR")} / {Math.max(customersPage.pages, 1).toLocaleString("fa-IR")}</b>
+                  <button disabled={customersPage.page >= customersPage.pages} onClick={() => loadCustomers(customersPage.page + 1)}><ChevronLeft size={21} /></button>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
       </div>
     );
   }
@@ -1617,12 +1736,12 @@ export default function PrimePanelV2({
 
   return (
     <main className="v2App">
-      <header className={section === "dashboard" || section === "admins" || section === "clients" ? "v2Topbar primeDashTopbar" : "v2Topbar"}>
-        <div className={section === "dashboard" || section === "admins" || section === "clients" ? "v2Brand primeDashBrand" : "v2Brand"}>
-          <div className="v2BrandMark">{section === "dashboard" || section === "admins" || section === "clients" ? <ShieldCheck size={22} /> : <Gauge size={21} />}</div>
+      <header className={["dashboard", "admins", "clients", "plans", "wallet", "commerce"].includes(section) ? "v2Topbar primeDashTopbar" : "v2Topbar"}>
+        <div className={["dashboard", "admins", "clients", "plans", "wallet", "commerce"].includes(section) ? "v2Brand primeDashBrand" : "v2Brand"}>
+          <div className="v2BrandMark">{["dashboard", "admins", "clients", "plans", "wallet", "commerce"].includes(section) ? <ShieldCheck size={22} /> : <Gauge size={21} />}</div>
           <div><strong>PRIMEVPN</strong><span>{user.role === "owner" ? "OWNER CONTROL" : "RESELLER PANEL"}</span></div>
         </div>
-        <div className={section === "dashboard" || section === "admins" || section === "clients" ? "v2TopActions primeDashTopActions" : "v2TopActions"}>
+        <div className={["dashboard", "admins", "clients", "plans", "wallet", "commerce"].includes(section) ? "v2TopActions primeDashTopActions" : "v2TopActions"}>
           <button className="v2MenuButton" title="منو" onClick={() => setDrawer(true)}><MoreVertical size={23} /></button>
           <button title="بروزرسانی" onClick={reloadSection}><RefreshCw size={18} /></button>
           {section === "dashboard" && (
@@ -1675,7 +1794,7 @@ export default function PrimePanelV2({
       )}
 
       <section className="v2Content">
-        <div className={section === "dashboard" ? "v2PageHead primeDashPageHead" : section === "admins" ? "v2PageHead primeAdminPageHead" : section === "clients" ? "v2PageHead primeClientPageHead" : "v2PageHead"}>
+        <div className={section === "dashboard" ? "v2PageHead primeDashPageHead" : section === "admins" ? "v2PageHead primeAdminPageHead" : section === "clients" ? "v2PageHead primeClientPageHead" : section === "plans" ? "v2PageHead primePlanPageHead" : section === "wallet" ? "v2PageHead primeWalletPageHead" : section === "commerce" ? "v2PageHead primeCommercePageHead" : "v2PageHead"}>
           <div>
             <span className="v2Eyebrow">PRIME NETWORK · PRODUCTION</span>
             <h1>{activeNav.label}</h1>
@@ -1810,7 +1929,7 @@ export default function PrimePanelV2({
       </Modal>
 
       <Modal open={modal === "plan-create"} title="ساخت پلن پایه" onClose={() => setModal(null)}>
-        <form className="v2Form" onSubmit={createPlan}>
+        <form className="v2Form primePlanCreateForm" onSubmit={createPlan}>
           <label>نام پلن<input value={planForm.name} onChange={(e) => setPlanForm({ ...planForm, name: e.target.value })} required /></label>
           <label>Group<select value={planForm.group_id} onChange={(e) => setPlanForm({ ...planForm, group_id: e.target.value })} required><option value="">انتخاب Group</option>{groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}</select></label>
           <label>قیمت پایه هر GB<input type="number" value={planForm.base_price_per_gib_toman} onChange={(e) => setPlanForm({ ...planForm, base_price_per_gib_toman: e.target.value })} required /></label>
