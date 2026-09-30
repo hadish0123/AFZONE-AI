@@ -3112,3 +3112,725 @@ body:has(.primeLoginPage){padding-bottom:0!important;background:#031329!importan
   .primePlanCreateForm input,.primePlanCreateForm select{min-height:53px}
   .primePlanCreateForm>.v2Primary{min-height:60px;font-size:15px!important}
 }
+
+
+/* PRIMEVPN final reference screens: bots, PasarGuard, reports, settings */
+.v2App:has(.primeBotsPage),
+.v2App:has(.primePasarguardPage),
+.v2App:has(.primeReportsPage),
+.v2App:has(.primeSettingsPage){
+  min-height:100svh;
+  background:
+    linear-gradient(rgba(22,105,201,.10) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(22,105,201,.10) 1px,transparent 1px),
+    radial-gradient(circle at 12% -3%,rgba(82,44,255,.24),transparent 26%),
+    radial-gradient(circle at 85% 2%,rgba(17,191,255,.10),transparent 20%),
+    linear-gradient(155deg,#061a3e 0%,#03162e 51%,#05152e 100%);
+  background-size:58px 58px,58px 58px,auto,auto,auto;
+}
+.v2Content:has(.primeBotsPage),
+.v2Content:has(.primePasarguardPage),
+.v2Content:has(.primeReportsPage),
+.v2Content:has(.primeSettingsPage){
+  position:relative;
+  z-index:2;
+  width:min(810px,calc(100% - 34px));
+  padding-top:4px;
+}
+.primeBotsPageHead,
+.primePasarguardPageHead,
+.primeReportsPageHead,
+.primeSettingsPageHead{
+  margin:0 0 20px;
+  align-items:end;
+}
+.primeBotsPageHead>div:first-child,
+.primePasarguardPageHead>div:first-child,
+.primeReportsPageHead>div:first-child,
+.primeSettingsPageHead>div:first-child{
+  margin-right:auto;
+  text-align:right;
+}
+.primeBotsPageHead .v2Eyebrow,
+.primePasarguardPageHead .v2Eyebrow,
+.primeReportsPageHead .v2Eyebrow,
+.primeSettingsPageHead .v2Eyebrow{
+  display:block;
+  font:500 11px/1 Arial,sans-serif;
+  letter-spacing:4px;
+  color:#25dcff;
+  margin-bottom:13px;
+}
+.primeBotsPageHead h1,
+.primePasarguardPageHead h1,
+.primeReportsPageHead h1,
+.primeSettingsPageHead h1{
+  margin:0 0 8px;
+  color:#fff;
+  font-size:43px;
+  line-height:1.2;
+  font-weight:900;
+}
+.primeBotsPageHead p,
+.primePasarguardPageHead p,
+.primeReportsPageHead p,
+.primeSettingsPageHead p{
+  color:#8294bd;
+  font-size:16px;
+}
+.primeBotsPageHead .v2Create,
+.primePasarguardPageHead .v2Create{
+  order:-1;
+  min-width:210px;
+  height:78px;
+  border-radius:18px;
+  border:1px solid rgba(255,209,91,.72);
+  color:#171108;
+  font-size:20px;
+  font-weight:900;
+  background:
+    radial-gradient(circle at 20% 25%,rgba(255,239,87,.66),transparent 34%),
+    radial-gradient(circle at 82% 74%,rgba(255,61,100,.34),transparent 40%),
+    linear-gradient(105deg,#ffd33d 0%,#ff9e39 45%,#ff5a66 100%);
+  box-shadow:0 0 24px rgba(255,159,51,.38),0 0 34px rgba(255,78,100,.14),inset 0 0 16px rgba(255,255,255,.18);
+}
+
+/* Bots */
+.primeBotsPage{direction:rtl}
+.primeBotsPanel,
+.primePasarguardPanel,
+.primeAuditPanel,
+.primeSettingsCard{
+  position:relative;
+  overflow:hidden;
+  border-radius:24px;
+  border:1px solid rgba(55,84,255,.78);
+  background:
+    linear-gradient(rgba(28,104,202,.045) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(28,104,202,.045) 1px,transparent 1px),
+    radial-gradient(circle at 92% 8%,rgba(104,44,255,.13),transparent 29%),
+    linear-gradient(155deg,rgba(7,34,73,.97),rgba(5,25,57,.985));
+  background-size:38px 38px,38px 38px,auto,auto;
+  box-shadow:0 0 25px rgba(35,135,255,.20),0 0 27px rgba(102,45,255,.14);
+}
+.primeBotsPanel:before,
+.primePasarguardPanel:before,
+.primeAuditPanel:before,
+.primeSettingsCard:before{
+  content:"";
+  position:absolute;
+  inset:-1px;
+  border-radius:inherit;
+  padding:1px;
+  pointer-events:none;
+  background:linear-gradient(95deg,#24ddff,#2e62ff 48%,#7f37ff);
+  -webkit-mask:linear-gradient(#000 0 0) padding-box,linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;
+  mask-composite:exclude;
+  opacity:.87;
+}
+.primeBotsPanelHead,
+.primePasarguardPanelHead{
+  position:relative;
+  z-index:2;
+  display:grid;
+  grid-template-columns:60px 1fr 74px;
+  align-items:center;
+  gap:12px;
+  padding:24px 22px 18px;
+}
+.primePasarguardPanelHead{grid-template-columns:60px 1fr}
+.primeBotsTitleIcon,
+.primePasarguardTitleIcon,
+.primeBotsHeroIcon{
+  width:56px;height:56px;
+  display:grid;place-items:center;
+  border-radius:16px;
+  color:#29ddff;
+  background:linear-gradient(145deg,rgba(13,74,142,.72),rgba(6,48,109,.74));
+  border:1px solid rgba(39,167,255,.52);
+  box-shadow:0 0 18px rgba(34,169,255,.18);
+}
+.primeBotsHeroIcon{
+  width:72px;height:72px;
+  color:#d4e7ff;
+  border-color:rgba(45,210,255,.70);
+  background:linear-gradient(145deg,rgba(8,72,144,.90),rgba(25,56,157,.85));
+}
+.primeBotsPanelHead>div:nth-child(2),
+.primePasarguardPanelHead>div:nth-child(2){text-align:right}
+.primeBotsPanelHead strong,
+.primePasarguardPanelHead strong{
+  display:block;color:#fff;font-size:26px;margin-bottom:7px
+}
+.primeBotsPanelHead span,
+.primePasarguardPanelHead span{
+  color:#8295b7;font-size:11px
+}
+.primeBotsTable,
+.primePasarguardTable{
+  position:relative;
+  z-index:2;
+  margin:0 18px 18px;
+  overflow:hidden;
+  min-height:430px;
+  border-radius:18px;
+  border:1px solid rgba(47,95,226,.53);
+  background:linear-gradient(160deg,rgba(5,29,65,.94),rgba(4,24,55,.97));
+}
+.primeBotsTableHead,
+.primePasarguardTableHead{
+  min-height:76px;
+  display:grid;
+  align-items:center;
+  padding:0 22px;
+  border-bottom:1px solid rgba(43,91,191,.30);
+  color:#bdc9df;
+  font-size:13px;
+}
+.primeBotsTableHead{grid-template-columns:1.4fr .8fr .8fr .8fr .9fr}
+.primePasarguardTableHead{grid-template-columns:1fr 1.6fr 1fr .8fr}
+.primeBotsTableHead span,
+.primePasarguardTableHead span{text-align:center}
+.primeBotsTableHead span:first-child,
+.primePasarguardTableHead span:first-child{text-align:right}
+.primeBotsTableBody,
+.primePasarguardTableBody{position:relative;min-height:340px}
+.primeBotRow,
+.primePasarguardRow{
+  width:100%;
+  min-height:72px;
+  display:grid;
+  align-items:center;
+  gap:8px;
+  padding:10px 22px;
+  border:0;
+  border-bottom:1px solid rgba(42,88,181,.19);
+  background:transparent;
+  color:#b7c4d9;
+  font:inherit;
+  cursor:pointer;
+}
+.primeBotRow{grid-template-columns:1.4fr .8fr .8fr .8fr .9fr}
+.primePasarguardRow{grid-template-columns:1fr 1.6fr 1fr .8fr}
+.primeBotRow:hover,
+.primePasarguardRow:hover{background:linear-gradient(90deg,rgba(36,205,255,.03),rgba(101,43,255,.045))}
+.primeBotRow>div,
+.primePasarguardRow>div{text-align:right}
+.primeBotRow strong,
+.primePasarguardRow strong{display:block;color:#fff;font-size:13px}
+.primeBotRow small,
+.primePasarguardRow small{display:block;margin-top:5px;color:#7285a7;font-size:8px}
+.primeBotRow>span,
+.primePasarguardRow>span{text-align:center;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.primeBotStatus,
+.primePasarguardStatus{
+  justify-self:center;
+  width:max-content;
+  padding:5px 9px;
+  border-radius:99px;
+  font-size:8px!important;
+}
+.primeBotStatus.active,
+.primePasarguardStatus.active{color:#60e7b1!important;border:1px solid rgba(53,219,158,.18);background:rgba(53,219,158,.06)}
+.primeBotStatus.disabled,
+.primePasarguardStatus.disabled{color:#ff99ae!important;border:1px solid rgba(255,86,120,.16);background:rgba(255,86,120,.05)}
+.primeBotsEmpty,
+.primePasarguardEmpty,
+.primeAuditEmpty{
+  position:absolute;
+  inset:0;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:14px;
+  text-align:center;
+  overflow:hidden;
+}
+.primeBotsEmpty:before,
+.primePasarguardEmpty:before,
+.primeAuditEmpty:before,
+.primeBotsEmpty:after,
+.primePasarguardEmpty:after,
+.primeAuditEmpty:after{
+  content:"";
+  position:absolute;
+  left:-7%;right:-7%;
+  height:120px;
+}
+.primeBotsEmpty:before,
+.primePasarguardEmpty:before,
+.primeAuditEmpty:before{
+  bottom:74px;
+  background:
+    radial-gradient(180px 60px at 22% 70%,rgba(57,75,255,.30),transparent 70%),
+    radial-gradient(230px 66px at 58% 100%,rgba(41,96,255,.24),transparent 72%);
+  border-top:1px solid rgba(58,92,255,.24);
+}
+.primeBotsEmpty:after,
+.primePasarguardEmpty:after,
+.primeAuditEmpty:after{
+  bottom:-42px;
+  background:
+    radial-gradient(165px 64px at 14% 60%,rgba(79,45,255,.33),transparent 70%),
+    radial-gradient(230px 70px at 82% 62%,rgba(44,84,255,.31),transparent 72%);
+  border-top:1px solid rgba(73,62,255,.27);
+}
+.primeBotsEmpty>span,
+.primePasarguardEmpty>span,
+.primeAuditEmpty>span{
+  position:relative;z-index:2;
+  width:118px;height:118px;
+  display:grid;place-items:center;
+  border-radius:30px;
+  color:#a7c8ff;
+  background:linear-gradient(145deg,rgba(24,62,160,.60),rgba(54,27,140,.72));
+  border:1px solid rgba(83,64,255,.56);
+  box-shadow:0 0 22px rgba(76,54,255,.23);
+}
+.primeBotsEmpty strong,
+.primePasarguardEmpty strong,
+.primeAuditEmpty strong{position:relative;z-index:2;color:#fff;font-size:24px}
+.primeBotsEmpty p,
+.primePasarguardEmpty p,
+.primeAuditEmpty p{position:relative;z-index:2;color:#8799b9;font-size:12px;margin:0}
+
+/* PasarGuard */
+.primePasarguardPage{direction:rtl}
+
+/* Reports */
+.primeReportsPage{display:grid;gap:18px;direction:rtl}
+.primeReportMetrics{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:14px;
+}
+.primeReportMetric{
+  --metric:#26cfff;
+  position:relative;
+  overflow:hidden;
+  min-height:185px;
+  padding:24px 23px 22px 90px;
+  border-radius:20px;
+  border:1px solid color-mix(in srgb,var(--metric) 62%,transparent);
+  background:
+    radial-gradient(circle at 86% 15%,color-mix(in srgb,var(--metric) 11%,transparent),transparent 38%),
+    linear-gradient(155deg,rgba(9,38,77,.96),rgba(5,27,59,.98));
+  box-shadow:0 0 21px color-mix(in srgb,var(--metric) 15%,transparent);
+}
+.primeReportMetric.violet{--metric:#ab45ff}
+.primeReportMetric.emerald{--metric:#16e2c8}
+.primeReportMetric.orange{--metric:#ff9d34}
+.primeReportMetricIcon{
+  position:absolute;
+  left:23px;top:24px;
+  width:66px;height:66px;
+  display:grid;place-items:center;
+  border-radius:17px;
+  color:color-mix(in srgb,var(--metric) 80%,white);
+  background:color-mix(in srgb,var(--metric) 11%,rgba(6,30,68,.84));
+  border:1px solid color-mix(in srgb,var(--metric) 40%,transparent);
+}
+.primeReportMetric>div:nth-child(2){text-align:right}
+.primeReportMetric span{display:block;color:#d7e1f4;font-size:17px;margin-bottom:13px}
+.primeReportMetric strong{display:block;color:#fff;font-size:29px}
+.primeReportMetric small{display:block;margin-top:14px;color:#8394b6;font-size:10px}
+.primeReportMetric>i{
+  position:absolute;left:24px;bottom:20px;
+  width:52px;height:52px;display:grid;place-items:center;
+  border-radius:50%;font-style:normal;color:var(--metric);
+  border:1px solid color-mix(in srgb,var(--metric) 52%,transparent);
+  box-shadow:0 0 16px color-mix(in srgb,var(--metric) 14%,transparent);
+}
+.primeAuditPanel{min-height:760px}
+.primeAuditHead{
+  position:relative;z-index:2;
+  display:grid;grid-template-columns:58px 1fr 58px;align-items:center;gap:12px;
+  padding:23px 22px 15px;
+}
+.primeAuditIcon,
+.primeAuditSideIcon{
+  width:55px;height:55px;display:grid;place-items:center;border-radius:15px;
+  color:#2fe0ff;background:linear-gradient(145deg,rgba(9,69,141,.75),rgba(7,46,105,.80));
+  border:1px solid rgba(39,163,255,.48);
+}
+.primeAuditSideIcon{color:#d3dfff}
+.primeAuditHead>div:nth-child(2){text-align:right}
+.primeAuditHead strong{display:block;color:#fff;font-size:22px}
+.primeAuditHead span{display:block;margin-top:6px;color:#8395b6;font-size:11px}
+.primeAuditTable{
+  position:relative;z-index:2;
+  margin:0 18px 18px;
+  min-height:650px;
+  overflow:hidden;
+  border-radius:18px;
+  border:1px solid rgba(46,92,224,.48);
+  background:linear-gradient(160deg,rgba(5,28,64,.94),rgba(4,23,54,.97));
+}
+.primeAuditTableHead{
+  min-height:78px;
+  display:grid;
+  grid-template-columns:1fr 1.2fr 1fr 1fr 1fr;
+  align-items:center;
+  padding:0 22px;
+  color:#b9c5df;
+  font-size:12px;
+  border-bottom:1px solid rgba(44,91,189,.30);
+}
+.primeAuditTableHead span{text-align:center}
+.primeAuditTableBody{position:relative;min-height:570px}
+.primeAuditRow{
+  min-height:72px;
+  display:grid;
+  grid-template-columns:1fr 1.2fr 1fr 1fr 1fr;
+  align-items:center;
+  gap:8px;
+  padding:10px 22px;
+  color:#aebbd2;
+  font-size:10px;
+  text-align:center;
+  border-bottom:1px solid rgba(41,87,180,.18);
+}
+.primeAuditRow strong{color:#fff;font-size:11px}
+
+/* Settings */
+.primeSettingsPage{
+  display:grid;
+  gap:18px;
+  direction:rtl;
+}
+.primeSettingsCard{padding-bottom:16px}
+.primeSettingsHead{
+  position:relative;
+  z-index:2;
+  display:grid;
+  grid-template-columns:56px 1fr auto;
+  align-items:center;
+  gap:12px;
+  padding:21px 22px 15px;
+}
+.primeSettingsIcon{
+  width:53px;height:53px;
+  display:grid;place-items:center;border-radius:15px;
+  color:#2fe0ff;
+  background:linear-gradient(145deg,rgba(9,69,141,.74),rgba(7,47,107,.80));
+  border:1px solid rgba(39,164,255,.48);
+  box-shadow:0 0 16px rgba(31,152,255,.13);
+}
+.primeSettingsHead>div:nth-child(2){text-align:right}
+.primeSettingsHead strong{display:block;color:#fff;font-size:23px}
+.primeSettingsHead span{display:block;margin-top:6px;color:#8194b6;font-size:10px}
+.primeSettingsAdd{
+  min-width:135px;height:57px;border-radius:15px;
+  border:1px solid rgba(44,225,255,.65);
+  color:#07111c;font-weight:900;font-size:15px;
+  background:linear-gradient(105deg,#36e0e7,#39e0d2);
+  box-shadow:0 0 22px rgba(47,218,255,.26);
+  display:flex;align-items:center;justify-content:center;gap:7px;
+}
+.primeBankBody{position:relative;z-index:2;margin:0 16px 2px}
+.primeBankGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.primeBankItem{
+  min-height:150px;padding:16px;border-radius:15px;
+  border:1px solid rgba(48,101,240,.42);
+  background:linear-gradient(145deg,rgba(6,32,69,.88),rgba(5,27,59,.94));
+}
+.primeBankItem>div:first-child{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.primeBankItem strong{color:#fff;font-size:13px}
+.primeBankItem>div:first-child span{padding:4px 7px;border-radius:99px;color:#5be7b1;border:1px solid rgba(54,216,157,.18);font-size:7px}
+.primeBankItem b{display:block;margin-top:20px;color:#dce8fa;font:600 17px/1.4 monospace}
+.primeBankItem small{display:block;margin-top:7px;color:#8193b3;font-size:9px}
+.primeBankItem>div:last-child{display:flex;gap:7px;margin-top:15px}
+.primeBankItem>div:last-child button{min-height:35px;padding:0 10px;border-radius:9px;border:1px solid rgba(45,109,255,.38);background:rgba(13,47,97,.58);color:#a9c0e1;font-size:8px}
+.primeBankItem>div:last-child button.danger{color:#ff9cb0;border-color:rgba(255,85,120,.22)}
+.primeSettingsEmpty{
+  min-height:190px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;
+  border:1px solid rgba(44,91,218,.36);border-radius:16px;
+  background:linear-gradient(155deg,rgba(5,29,64,.82),rgba(4,24,54,.90));
+}
+.primeSettingsEmpty>span{
+  width:85px;height:70px;display:grid;place-items:center;border-radius:22px;
+  color:#94aee7;background:linear-gradient(145deg,rgba(25,59,146,.54),rgba(40,34,126,.58));
+  border:1px solid rgba(76,78,225,.38);
+}
+.primeSettingsEmpty strong{color:#dbe5f5;font-size:15px}
+.primeSettingsEmpty p{margin:0;color:#8193b2;font-size:10px}
+.primeZarinpalMark{
+  color:#ffcc2e!important;
+  font:900 30px/1 Arial,sans-serif!important;
+  margin:0!important;
+}
+.primeGatewayBody{
+  position:relative;z-index:2;
+  display:grid;
+  grid-template-columns:1fr auto;
+  gap:12px;
+  align-items:end;
+  padding:0 22px 4px;
+}
+.primeGatewayBody>label:first-child{grid-column:1/-1}
+.primeGatewayBody label>span{display:block;color:#aebbd4;font-size:11px;margin-bottom:7px}
+.primeGatewayBody input[type="password"]{
+  width:100%;min-height:58px;border-radius:14px;border:1px solid rgba(51,104,255,.58);
+  background:linear-gradient(145deg,rgba(6,31,68,.95),rgba(5,25,57,.97));color:#fff;padding:0 14px;
+}
+.primeGatewayCheck{
+  display:flex;align-items:center;gap:8px;min-height:54px;color:#b8c5de;
+}
+.primeGatewayCheck span{margin:0!important}
+.primeSettingsPrimary,
+.primeSecurityButton{
+  min-width:210px;min-height:58px;border-radius:14px;border:1px solid rgba(255,206,86,.70);
+  background:linear-gradient(105deg,#ffd23e,#ff9e39 47%,#ff6259);color:#161009;font-weight:900;
+  box-shadow:0 0 18px rgba(255,156,53,.20);
+}
+.primeThemeOptions{
+  position:relative;z-index:2;
+  display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;
+  padding:0 22px 6px;
+}
+.primeThemeOptions button{
+  min-height:56px;border-radius:13px;border:1px solid rgba(46,94,215,.39);
+  background:linear-gradient(145deg,rgba(6,31,68,.90),rgba(5,25,57,.95));
+  color:#b8c4db;font-size:10px;display:flex;align-items:center;justify-content:center;gap:7px;
+}
+.primeThemeOptions button.active{border-color:#2fe0ff;box-shadow:0 0 17px rgba(48,220,255,.18);color:#fff}
+.primeThemeOptions i{width:15px;height:15px;border-radius:50%;background:#32d7ff}
+.primeThemeOptions i.dark{background:#12c9ef}
+.primeThemeOptions i.light{background:#f4f6fa}
+.primeThemeOptions i.cyan{background:#1cd7f1}
+.primeThemeOptions i.violet{background:#a945ff}
+.primeThemeOptions i.emerald{background:#14d9a2}
+.primeThemeOptions i.orange{background:#ff8740}
+.primeSecurityBody{
+  position:relative;z-index:2;
+  display:grid;grid-template-columns:1fr auto;gap:20px;align-items:center;padding:2px 22px 8px;
+}
+.primeSecurityBody p{margin:8px 0;display:grid;grid-template-columns:24px 1fr;align-items:center;color:#b8c5df}
+.primeSecurityBody p svg{grid-row:1/3;color:#9bb8ed}
+.primeSecurityBody p span{font-size:12px}
+.primeSecurityBody p small{font-size:8px;color:#7d90b0;margin-top:3px}
+.primeBackupRows{
+  position:relative;z-index:2;
+  display:grid;gap:8px;padding:2px 20px 6px;
+}
+.primeBackupRows button,
+.primeBackupRows label{
+  min-height:64px;
+  display:grid;grid-template-columns:46px 1fr 28px;align-items:center;gap:10px;
+  border-radius:13px;border:1px solid rgba(48,96,219,.35);
+  background:linear-gradient(145deg,rgba(7,32,69,.84),rgba(5,26,57,.91));
+  color:#c2cee2;padding:8px 12px;cursor:pointer;
+}
+.primeBackupRows>*>span{
+  width:40px;height:40px;display:grid;place-items:center;border-radius:10px;background:rgba(30,73,149,.30);color:#b8c9e9
+}
+.primeBackupRows>*>div{text-align:right}
+.primeBackupRows strong{display:block;color:#e7eef9;font-size:12px}
+.primeBackupRows small{display:block;color:#7f91b0;font-size:8px;margin-top:4px}
+.primeBackupRows input{display:none}
+
+/* Create modals */
+.v2Modal:has(.primeConnectionCreateForm),
+.v2Modal:has(.primeBotCreateForm),
+.v2Modal:has(.primeBankCardCreateForm){
+  width:min(690px,calc(100% - 22px));
+  position:relative;
+  overflow:hidden;
+  border-radius:28px;
+  border:1px solid rgba(66,84,255,.86);
+  background:
+    linear-gradient(rgba(27,104,201,.045) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(27,104,201,.045) 1px,transparent 1px),
+    radial-gradient(circle at 90% 4%,rgba(102,44,255,.17),transparent 29%),
+    linear-gradient(155deg,#082043,#061631);
+  background-size:34px 34px,34px 34px,auto,auto;
+  box-shadow:0 0 36px rgba(35,143,255,.28),0 0 38px rgba(104,44,255,.20);
+}
+.v2Modal:has(.primeConnectionCreateForm):before,
+.v2Modal:has(.primeBotCreateForm):before,
+.v2Modal:has(.primeBankCardCreateForm):before{
+  content:"";position:absolute;inset:-1px;border-radius:inherit;padding:1px;pointer-events:none;
+  background:linear-gradient(95deg,#24ddff,#3460ff,#7f37ff);
+  -webkit-mask:linear-gradient(#000 0 0) padding-box,linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;mask-composite:exclude;
+}
+.v2Modal:has(.primeConnectionCreateForm)>header,
+.v2Modal:has(.primeBotCreateForm)>header,
+.v2Modal:has(.primeBankCardCreateForm)>header{
+  min-height:92px;
+  border-bottom:1px solid rgba(47,104,211,.28);
+  background:rgba(5,24,53,.45);
+}
+.v2Modal:has(.primeConnectionCreateForm)>header>strong,
+.v2Modal:has(.primeBotCreateForm)>header>strong,
+.v2Modal:has(.primeBankCardCreateForm)>header>strong{font-size:24px;color:#fff}
+.v2Modal:has(.primeConnectionCreateForm) .v2ModalBody,
+.v2Modal:has(.primeBotCreateForm) .v2ModalBody,
+.v2Modal:has(.primeBankCardCreateForm) .v2ModalBody{padding:24px 28px 28px}
+.primeConnectionCreateForm,
+.primeBotCreateForm,
+.primeBankCardCreateForm{display:grid;gap:16px!important}
+.primeConnectionCreateForm label,
+.primeBotCreateForm label,
+.primeBankCardCreateForm label{color:#c0cce4!important;font-size:12px!important}
+.primeConnectionCreateForm input,
+.primeConnectionCreateForm select,
+.primeBotCreateForm input,
+.primeBotCreateForm select,
+.primeBankCardCreateForm input,
+.primeBankCardCreateForm select{
+  min-height:61px;
+  border-radius:14px!important;
+  border:1px solid rgba(45,111,255,.70)!important;
+  background:linear-gradient(145deg,rgba(6,31,68,.95),rgba(5,25,57,.97))!important;
+  color:#f3f7ff!important;
+  padding:0 15px!important;
+}
+.primeConnectionCreateForm input:focus,
+.primeBotCreateForm input:focus,
+.primeBotCreateForm select:focus,
+.primeBankCardCreateForm input:focus{
+  outline:none!important;
+  border-color:#35ddff!important;
+  box-shadow:0 0 0 3px rgba(48,217,255,.07),0 0 14px rgba(48,217,255,.10)!important;
+}
+.primeBotCreateForm .v2Picker{
+  padding:12px!important;border-radius:16px!important;border:1px solid rgba(48,95,235,.34)!important;
+  background:rgba(5,28,62,.52)!important;
+}
+.primeBotCreateForm .v2PickerSearch{display:grid!important;grid-template-columns:1fr 120px!important;gap:10px!important}
+.primeBotCreateForm .v2PickerSearch button{
+  border-radius:13px!important;border:1px solid rgba(40,216,255,.68)!important;
+  background:linear-gradient(145deg,rgba(8,77,153,.90),rgba(6,55,120,.94))!important;
+  color:#d8f6ff!important;
+}
+.primeConnectionCreateForm>.v2Primary,
+.primeBotCreateForm>.v2Primary,
+.primeBankCardCreateForm>.v2Primary{
+  min-height:68px;
+  border-radius:15px!important;
+  border:1px solid rgba(255,209,91,.72)!important;
+  color:#171108!important;
+  font-size:17px!important;
+  font-weight:900!important;
+  background:
+    radial-gradient(circle at 19% 25%,rgba(255,239,87,.58),transparent 34%),
+    radial-gradient(circle at 82% 74%,rgba(255,61,100,.32),transparent 40%),
+    linear-gradient(105deg,#ffd33d 0%,#ff9e39 45%,#ff5a66 100%)!important;
+  box-shadow:0 0 20px rgba(255,159,51,.28),0 0 25px rgba(255,78,100,.10)!important;
+}
+.primeBotCreateForm .v2Check,
+.primeBankCardCreateForm .v2Check{
+  min-height:auto!important;
+  display:flex!important;
+  align-items:center!important;
+  gap:8px!important;
+  color:#d3def0!important;
+}
+.primeBotCreateForm .v2Check input,
+.primeBankCardCreateForm .v2Check input{
+  min-height:0!important;
+  width:22px!important;height:22px!important;
+  accent-color:#28dfff;
+}
+
+/* Orange shield for final admin screens */
+.v2App:has(.primeReportsPage) .primeDashBrand .v2BrandMark,
+.v2App:has(.primePasarguardPage) .primeDashBrand .v2BrandMark,
+.v2App:has(.primeSettingsPage) .primeDashBrand .v2BrandMark,
+.v2App:has(.primeBotsPage) .primeDashBrand .v2BrandMark{
+  color:#ffb42f;
+  background:
+    radial-gradient(circle at 78% 15%,rgba(255,114,43,.54),transparent 38%),
+    linear-gradient(145deg,#ff9c2f,#ff5c43 50%,#7b32ff);
+  border-color:rgba(255,133,55,.58);
+  box-shadow:0 0 24px rgba(255,104,49,.28),0 0 19px rgba(113,51,255,.24);
+}
+
+@media(max-width:760px){
+  .v2Content:has(.primeBotsPage),
+  .v2Content:has(.primePasarguardPage),
+  .v2Content:has(.primeReportsPage),
+  .v2Content:has(.primeSettingsPage){width:calc(100% - 22px)}
+  .primeBotsPageHead,.primePasarguardPageHead,.primeReportsPageHead,.primeSettingsPageHead{margin-bottom:15px;align-items:center}
+  .primeBotsPageHead .v2Eyebrow,.primePasarguardPageHead .v2Eyebrow,.primeReportsPageHead .v2Eyebrow,.primeSettingsPageHead .v2Eyebrow{font-size:8px;letter-spacing:3px;margin-bottom:9px}
+  .primeBotsPageHead h1,.primePasarguardPageHead h1,.primeReportsPageHead h1,.primeSettingsPageHead h1{font-size:34px;margin-bottom:4px}
+  .primeBotsPageHead p,.primePasarguardPageHead p,.primeReportsPageHead p,.primeSettingsPageHead p{font-size:13px}
+  .primeBotsPageHead .v2Create,.primePasarguardPageHead .v2Create{display:flex!important;min-width:155px;height:64px;font-size:16px}
+  .primeBotsPanelHead,.primePasarguardPanelHead{padding:18px 15px 13px}
+  .primeBotsPanelHead{grid-template-columns:50px 1fr 62px}
+  .primePasarguardPanelHead{grid-template-columns:50px 1fr}
+  .primeBotsTitleIcon,.primePasarguardTitleIcon{width:47px;height:47px}
+  .primeBotsHeroIcon{width:59px;height:59px}
+  .primeBotsPanelHead strong,.primePasarguardPanelHead strong{font-size:20px}
+  .primeBotsTable,.primePasarguardTable{margin-left:12px;margin-right:12px}
+  .primeBotsTableHead,.primeBotRow,.primePasarguardTableHead,.primePasarguardRow{padding-left:12px;padding-right:12px;font-size:9px}
+  .primeReportMetric{min-height:155px;padding:20px 18px 18px 72px}
+  .primeReportMetricIcon{left:17px;top:20px;width:52px;height:52px}
+  .primeReportMetric span{font-size:14px}
+  .primeReportMetric strong{font-size:24px}
+  .primeReportMetric>i{left:18px;bottom:17px;width:42px;height:42px}
+  .primeAuditPanel{min-height:650px}
+  .primeAuditHead{padding:18px 15px 12px}
+  .primeAuditTable{margin-left:12px;margin-right:12px;min-height:560px}
+  .primeAuditTableHead,.primeAuditRow{padding-left:10px;padding-right:10px;font-size:8px}
+  .primeSettingsHead{padding:17px 15px 12px;grid-template-columns:48px 1fr auto}
+  .primeSettingsIcon{width:45px;height:45px}
+  .primeSettingsHead strong{font-size:18px}
+  .primeSettingsAdd{min-width:112px;height:50px}
+  .primeThemeOptions{grid-template-columns:repeat(3,1fr);padding-left:15px;padding-right:15px}
+  .primeGatewayBody,.primeSecurityBody{padding-left:15px;padding-right:15px}
+  .primeBankGrid{grid-template-columns:1fr}
+}
+@media(max-width:430px){
+  .primeBotsPageHead h1,.primePasarguardPageHead h1,.primeReportsPageHead h1,.primeSettingsPageHead h1{font-size:29px}
+  .primeBotsPageHead .v2Create,.primePasarguardPageHead .v2Create{min-width:124px;height:56px;font-size:14px;padding:0 12px}
+  .primeBotsPanel,.primePasarguardPanel,.primeAuditPanel,.primeSettingsCard{border-radius:20px}
+  .primeBotsPanelHead{grid-template-columns:43px 1fr 50px;gap:8px}
+  .primePasarguardPanelHead{grid-template-columns:43px 1fr;gap:8px}
+  .primeBotsTitleIcon,.primePasarguardTitleIcon{width:41px;height:41px;border-radius:12px}
+  .primeBotsHeroIcon{width:48px;height:48px;border-radius:13px}
+  .primeBotsPanelHead strong,.primePasarguardPanelHead strong{font-size:16px}
+  .primeBotsPanelHead span,.primePasarguardPanelHead span{font-size:8px}
+  .primeBotsTableHead,.primeBotRow{grid-template-columns:1.25fr .75fr .75fr .75fr .85fr}
+  .primePasarguardTableHead,.primePasarguardRow{grid-template-columns:1fr 1.25fr .9fr .75fr}
+  .primeBotsTableHead,.primePasarguardTableHead{min-height:62px;font-size:8px}
+  .primeBotRow,.primePasarguardRow{min-height:64px;font-size:8px}
+  .primeBotRow strong,.primePasarguardRow strong{font-size:10px}
+  .primeBotRow>span,.primePasarguardRow>span{font-size:8px}
+  .primeBotsEmpty strong,.primePasarguardEmpty strong{font-size:19px}
+  .primeReportMetrics{gap:9px}
+  .primeReportMetric{min-height:140px;padding:16px 12px 15px 60px;border-radius:17px}
+  .primeReportMetricIcon{left:10px;top:16px;width:44px;height:44px;border-radius:12px}
+  .primeReportMetricIcon svg{width:20px}
+  .primeReportMetric span{font-size:11px}
+  .primeReportMetric strong{font-size:19px}
+  .primeReportMetric small{font-size:8px}
+  .primeReportMetric>i{left:11px;bottom:13px;width:35px;height:35px}
+  .primeAuditHead{grid-template-columns:44px 1fr 44px;gap:7px}
+  .primeAuditIcon,.primeAuditSideIcon{width:41px;height:41px;border-radius:12px}
+  .primeAuditHead strong{font-size:17px}
+  .primeAuditTableHead,.primeAuditRow{grid-template-columns:.9fr 1fr .85fr 1fr 1fr;font-size:7px;padding-left:6px;padding-right:6px}
+  .primeAuditEmpty strong{font-size:19px}
+  .primeSettingsHead{grid-template-columns:42px 1fr auto;gap:8px;padding:14px 11px 10px}
+  .primeSettingsIcon{width:39px;height:39px;border-radius:11px}
+  .primeSettingsHead strong{font-size:15px}
+  .primeSettingsHead span{font-size:8px}
+  .primeSettingsAdd{min-width:88px;height:44px;font-size:12px}
+  .primeSettingsEmpty{min-height:160px}
+  .primeGatewayBody{grid-template-columns:1fr}
+  .primeGatewayBody>label:first-child{grid-column:auto}
+  .primeSettingsPrimary,.primeSecurityButton{width:100%;min-width:0}
+  .primeThemeOptions{grid-template-columns:repeat(2,1fr);gap:7px;padding-left:10px;padding-right:10px}
+  .primeSecurityBody{grid-template-columns:1fr;gap:12px}
+  .primeBackupRows{padding-left:10px;padding-right:10px}
+  .primeBackupRows button,.primeBackupRows label{grid-template-columns:40px 1fr 22px}
+  .v2Modal:has(.primeConnectionCreateForm) .v2ModalBody,
+  .v2Modal:has(.primeBotCreateForm) .v2ModalBody,
+  .v2Modal:has(.primeBankCardCreateForm) .v2ModalBody{padding:17px}
+  .primeConnectionCreateForm input,.primeBotCreateForm input,.primeBotCreateForm select,.primeBankCardCreateForm input{min-height:54px}
+  .primeConnectionCreateForm>.v2Primary,.primeBotCreateForm>.v2Primary,.primeBankCardCreateForm>.v2Primary{min-height:60px;font-size:15px!important}
+}
