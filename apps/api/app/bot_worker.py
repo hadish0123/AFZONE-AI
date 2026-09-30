@@ -84,6 +84,38 @@ def money_text(value) -> str:
     return f"{int(Decimal(value)):,} تومان"
 
 
+def brand_title(title: str, subtitle: str | None = None) -> str:
+    text = f"🛡 <b>PRIMEVPN</b>\n<b>{title}</b>"
+    if subtitle:
+        text += f"\n\n{subtitle}"
+    return text
+
+
+def status_text(value) -> str:
+    raw = getattr(value, "value", value)
+    mapping = {
+        "active": "فعال",
+        "disabled": "غیرفعال",
+        "error": "خطا",
+        "pending": "در انتظار",
+        "awaiting_review": "در انتظار بررسی",
+        "paid": "پرداخت‌شده",
+        "rejected": "ردشده",
+        "failed": "ناموفق",
+        "provisioned": "فعال‌شده",
+        "cancelled": "لغوشده",
+    }
+    return mapping.get(str(raw), str(raw))
+
+
+def purpose_text(value: str | None) -> str:
+    return {
+        "order_card": "خرید سرویس / کارت‌به‌کارت",
+        "customer_wallet_topup": "شارژ کیف پول مشتری",
+        "order_wallet": "خرید از کیف پول",
+    }.get(value or "", "پرداخت")
+
+
 async def load_bot(bot_id: uuid.UUID) -> TelegramBot | None:
     async with SessionLocal() as db:
         return await db.scalar(select(TelegramBot).where(TelegramBot.id == bot_id))
