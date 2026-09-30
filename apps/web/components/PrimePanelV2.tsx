@@ -84,6 +84,8 @@ type ClientRow = {
   subscription_url?: string | null;
   plan_id?: string | null;
   group_id: string;
+  group_name?: string | null;
+  connection_name?: string | null;
   created_at: string;
 };
 
@@ -411,6 +413,7 @@ export default function PrimePanelV2({
   const [clientSearch, setClientSearch] = useState("");
   const [clientStatus, setClientStatus] = useState("");
   const [clientAdminFilter, setClientAdminFilter] = useState("");
+  const [clientSort, setClientSort] = useState("newest");
   const [paymentStatus, setPaymentStatus] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
   const [commerceTab, setCommerceTab] = useState<"payments" | "orders" | "customers">("payments");
@@ -567,6 +570,7 @@ export default function PrimePanelV2({
         q: clientSearch,
         status_filter: clientStatus,
         admin_id: user.role === "owner" ? clientAdminFilter : "",
+        sort: clientSort,
         page,
         page_size: 25,
       })}`
@@ -647,7 +651,10 @@ export default function PrimePanelV2({
   async function reloadSection() {
     await loadGlobal();
     if (section === "admins") await loadAdmins();
-    if (section === "clients") await loadClients();
+    if (section === "clients") {
+      if (user.role === "owner") await searchAdminOptions("");
+      await loadClients();
+    }
     if (section === "plans") await loadPlans();
     if (section === "wallet") await loadWallet();
     if (section === "commerce") {
@@ -1124,43 +1131,101 @@ export default function PrimePanelV2({
 
   function renderClients() {
     return (
-      <div className="v2Stack">
-        <Toolbar search={clientSearch} onSearch={setClientSearch} placeholder="جستجو بر اساس Username">
-          <select value={clientStatus} onChange={(e) => setClientStatus(e.target.value)}>
-            <option value="">همه وضعیت‌ها</option>
-            <option value="active">فعال</option>
-            <option value="disabled">غیرفعال</option>
-            <option value="error">خطا</option>
-          </select>
-          {user.role === "owner" && (
+      <div className="primeClientsPage">
+        <section className="primeClientDirectory">
+          <div className="primeClientSearchBox">
+            <button onClick={() => loadClients(1)} aria-label="جستجو"><Search size={25} /></button>
             <input
-              className="v2MiniField"
-              placeholder="Admin ID (اختیاری)"
-              value={clientAdminFilter}
-              onChange={(e) => setClientAdminFilter(e.target.value)}
+              value={clientSearch}
+              onChange={(e) => setClientSearch(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && loadClients(1)}
+              placeholder="جستجو بر اساس Username"
             />
-          )}
-          <button onClick={() => loadClients(1)}><SlidersHorizontal size={16} /> اعمال</button>
-        </Toolbar>
-        <article className="v2Card v2TableCard">
-          <div className="v2Table">
-            <div className="v2Tr v2Th">
-              <span>کلاینت</span><span>نماینده</span><span>مصرف</span><span>حجم</span><span>انقضا</span><span />
-            </div>
-            {clientsPage.items.map((c) => (
-              <div className="v2Tr" key={c.id}>
-                <div><strong>{c.username}</strong><small>{c.status} · {c.hwid_limit || "∞"} دستگاه</small></div>
-                <span>{c.admin_username || "—"}</span>
-                <span>{gib(c.lifetime_usage_bytes)}</span>
-                <span>{c.quota_bytes ? gib(c.quota_bytes) : "نامحدود"}</span>
-                <span>{dt(c.expires_at)}</span>
-                <button className="v2More" onClick={() => { setSelectedId(c.id); setModal("client-manage"); }}><MoreVertical size={18} /></button>
-              </div>
-            ))}
-            {!clientsPage.items.length && <Empty text="کلاینتی پیدا نشد." />}
+            <i className="primeClientSearchWave" />
           </div>
-          <Pager page={clientsPage.page} pages={clientsPage.pages} total={clientsPage.total} onPage={loadClients} />
-        </article>
+
+          <div className="primeClientFilters">
+            <button className="primeClientFilterButton" onClick={() => loadClients(1)} aria-label="اعمال فیلتر">
+              <SlidersHorizontal size={24} />
+            </button>
+
+            <label>
+              <select value={clientSort} onChange={(e) => setClientSort(e.target.value)}>
+                <option value="newest">جدیدترین</option>
+                <option value="oldest">قدیمی‌ترین</option>
+              </select>
+              <ChevronLeft size={18} />
+            </label>
+
+            {user.role === "owner" && (
+              <label>
+                <select value={clientAdminFilter} onChange={(e) => setClientAdminFilter(e.target.value)}>
+                  <option value="">Admin (نماینده)</option>
+                  {adminOptions.map((admin) => (
+                    <option key={admin.id} value={admin.id}>{admin.display_name || admin.username}</option>
+                  ))}
+                </select>
+                <ChevronLeft size={18} />
+              </label>
+            )}
+
+            <label>
+              <select value={clientStatus} onChange={(e) => setClientStatus(e.target.value)}>
+                <option value="">همه وضعیت‌ها</option>
+                <option value="active">فعال</option>
+                <option value="disabled">غیرفعال</option>
+                <option value="error">خطا</option>
+              </select>
+              <ChevronLeft size={18} />
+            </label>
+          </div>
+
+          <div className="primeClientTable">
+            <div className="primeClientTableHead">
+              <span>کلاینت</span>
+              <span>نماینده</span>
+              <span>سرور</span>
+              <span>سهم</span>
+              <span>ایجاد</span>
+            </div>
+
+            <div className="primeClientTableBody">
+              {clientsPage.items.map((client) => (
+                <button
+                  className="primeClientRow"
+                  key={client.id}
+                  onClick={() => { setSelectedId(client.id); setModal("client-manage"); }}
+                >
+                  <div><strong>{client.username}</strong><small>{client.status}</small></div>
+                  <span>{client.admin_username || "—"}</span>
+                  <span>{client.connection_name || client.group_name || "—"}</span>
+                  <span>{client.quota_bytes ? gib(client.quota_bytes) : "∞"}</span>
+                  <span>{dt(client.created_at)}</span>
+                </button>
+              ))}
+
+              {!clientsPage.items.length && (
+                <div className="primeClientEmpty">
+                  <span><Users size={39} /></span>
+                  <strong>کلاینتی پیدا نشد</strong>
+                </div>
+              )}
+            </div>
+
+            <div className="primeClientPager">
+              <span>{clientsPage.total.toLocaleString("fa-IR")} ردیف</span>
+              <div>
+                <button disabled={clientsPage.page <= 1} onClick={() => loadClients(clientsPage.page - 1)}>
+                  <ChevronRight size={21} />
+                </button>
+                <b>{clientsPage.page.toLocaleString("fa-IR")} / {Math.max(clientsPage.pages, 1).toLocaleString("fa-IR")}</b>
+                <button disabled={clientsPage.page >= clientsPage.pages} onClick={() => loadClients(clientsPage.page + 1)}>
+                  <ChevronLeft size={21} />
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
     );
   }
@@ -1552,12 +1617,12 @@ export default function PrimePanelV2({
 
   return (
     <main className="v2App">
-      <header className={section === "dashboard" || section === "admins" ? "v2Topbar primeDashTopbar" : "v2Topbar"}>
-        <div className={section === "dashboard" || section === "admins" ? "v2Brand primeDashBrand" : "v2Brand"}>
-          <div className="v2BrandMark">{section === "dashboard" || section === "admins" ? <ShieldCheck size={22} /> : <Gauge size={21} />}</div>
+      <header className={section === "dashboard" || section === "admins" || section === "clients" ? "v2Topbar primeDashTopbar" : "v2Topbar"}>
+        <div className={section === "dashboard" || section === "admins" || section === "clients" ? "v2Brand primeDashBrand" : "v2Brand"}>
+          <div className="v2BrandMark">{section === "dashboard" || section === "admins" || section === "clients" ? <ShieldCheck size={22} /> : <Gauge size={21} />}</div>
           <div><strong>PRIMEVPN</strong><span>{user.role === "owner" ? "OWNER CONTROL" : "RESELLER PANEL"}</span></div>
         </div>
-        <div className={section === "dashboard" || section === "admins" ? "v2TopActions primeDashTopActions" : "v2TopActions"}>
+        <div className={section === "dashboard" || section === "admins" || section === "clients" ? "v2TopActions primeDashTopActions" : "v2TopActions"}>
           <button className="v2MenuButton" title="منو" onClick={() => setDrawer(true)}><MoreVertical size={23} /></button>
           <button title="بروزرسانی" onClick={reloadSection}><RefreshCw size={18} /></button>
           {section === "dashboard" && (
@@ -1610,7 +1675,7 @@ export default function PrimePanelV2({
       )}
 
       <section className="v2Content">
-        <div className={section === "dashboard" ? "v2PageHead primeDashPageHead" : section === "admins" ? "v2PageHead primeAdminPageHead" : "v2PageHead"}>
+        <div className={section === "dashboard" ? "v2PageHead primeDashPageHead" : section === "admins" ? "v2PageHead primeAdminPageHead" : section === "clients" ? "v2PageHead primeClientPageHead" : "v2PageHead"}>
           <div>
             <span className="v2Eyebrow">PRIME NETWORK · PRODUCTION</span>
             <h1>{activeNav.label}</h1>
@@ -1627,10 +1692,10 @@ export default function PrimePanelV2({
         {pageContent()}
       </section>
 
-      {canCreate && section !== "admins" && <button className="v2Fab" onClick={contextualCreate}><Plus size={25} /></button>}
+      {canCreate && !["admins", "clients"].includes(section) && <button className="v2Fab" onClick={contextualCreate}><Plus size={25} /></button>}
 
       <Modal open={modal === "admin-create"} title="ساخت نماینده" onClose={() => setModal(null)}>
-        <form className="v2Form" onSubmit={createAdmin}>
+        <form className="v2Form primeCreateForm primeAdminCreateForm" onSubmit={createAdmin}>
           <label>نام کاربری<input value={adminForm.username} onChange={(e) => setAdminForm({ ...adminForm, username: e.target.value })} required /></label>
           <label>نام نمایشی<input value={adminForm.display_name} onChange={(e) => setAdminForm({ ...adminForm, display_name: e.target.value })} /></label>
           <label>Telegram ID<input type="number" value={adminForm.telegram_id} onChange={(e) => setAdminForm({ ...adminForm, telegram_id: e.target.value })} /></label>
@@ -1688,7 +1753,7 @@ export default function PrimePanelV2({
       </Modal>
 
       <Modal open={modal === "client-create"} title="ساخت کلاینت" onClose={() => setModal(null)}>
-        <form className="v2Form" onSubmit={createClient}>
+        <form className="v2Form primeCreateForm primeClientCreateForm" onSubmit={createClient}>
           <label>Username<input value={clientForm.username} onChange={(e) => setClientForm({ ...clientForm, username: e.target.value })} required /></label>
           {user.role === "owner" && <div className="v2Picker">
             <label>جستجوی نماینده
