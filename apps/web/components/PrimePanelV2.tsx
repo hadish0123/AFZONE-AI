@@ -293,8 +293,23 @@ const navigation = [
   { key: "settings", label: "تنظیمات", icon: Settings, owner: true, admin: true },
 ] as const;
 
-const money = (value?: string | number | null) =>
-  new Intl.NumberFormat("fa-IR").format(Number(value || 0)) + " تومان";
+const normalizeNumberText = (value: string | number | null | undefined) =>
+  String(value ?? "")
+    .trim()
+    .replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)))
+    .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
+    .replace(/[٬,\s]/g, "")
+    .replace(/٫/g, ".");
+
+const exactNumber = (value: string | number | null | undefined) => {
+  const parsed = Number(normalizeNumberText(value));
+  return Number.isFinite(parsed) ? parsed : NaN;
+};
+
+const money = (value?: string | number | null) => {
+  const parsed = exactNumber(value);
+  return new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 4 }).format(Number.isFinite(parsed) ? parsed : 0) + " تومان";
+};
 
 const gib = (bytes?: number | null) =>
   (Number(bytes || 0) / 1024 ** 3).toLocaleString("fa-IR", { maximumFractionDigits: 2 }) + " GB";
@@ -877,16 +892,21 @@ export default function PrimePanelV2({
 
   async function createPlan(e: FormEvent) {
     e.preventDefault();
+    const price = exactNumber(planForm.base_price_per_gib_toman);
+    if (!Number.isFinite(price) || price <= 0) {
+      setError("قیمت هر GB را به تومان وارد کنید؛ مثال: 400 یعنی دقیقاً 400 تومان.");
+      return;
+    }
     await run(() => authApi("/api/v1/plans", {
       method: "POST",
       body: JSON.stringify({
         name: planForm.name,
         group_id: planForm.group_id,
-        base_price_per_gib_toman: Number(planForm.base_price_per_gib_toman),
-        min_quota_gib: planForm.min_quota_gib ? Number(planForm.min_quota_gib) : null,
-        max_quota_gib: planForm.max_quota_gib ? Number(planForm.max_quota_gib) : null,
-        max_duration_days: planForm.max_duration_days ? Number(planForm.max_duration_days) : null,
-        default_hwid_limit: planForm.default_hwid_limit ? Number(planForm.default_hwid_limit) : null,
+        base_price_per_gib_toman: price,
+        min_quota_gib: planForm.min_quota_gib ? exactNumber(planForm.min_quota_gib) : null,
+        max_quota_gib: planForm.max_quota_gib ? exactNumber(planForm.max_quota_gib) : null,
+        max_duration_days: planForm.max_duration_days ? exactNumber(planForm.max_duration_days) : null,
+        default_hwid_limit: planForm.default_hwid_limit ? exactNumber(planForm.default_hwid_limit) : null,
       }),
     }), "پلن پایه ساخته شد");
   }
