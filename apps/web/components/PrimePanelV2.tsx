@@ -1189,18 +1189,26 @@ export default function PrimePanelV2({
               <SlidersHorizontal size={24} />
             </button>
             <label>
-              <select value={adminSort} onChange={(e) => setAdminSort(e.target.value)}>
-                <option value="newest">جدیدترین</option>
-                <option value="oldest">قدیمی‌ترین</option>
-              </select>
+              <PrimeSelect
+                value={adminSort}
+                onChange={setAdminSort}
+                options={[
+                  { value: "newest", label: "جدیدترین" },
+                  { value: "oldest", label: "قدیمی‌ترین" },
+                ]}
+              />
               <ChevronLeft size={18} />
             </label>
             <label>
-              <select value={adminStatus} onChange={(e) => setAdminStatus(e.target.value)}>
-                <option value="">همه وضعیت‌ها</option>
-                <option value="active">فعال</option>
-                <option value="disabled">غیرفعال</option>
-              </select>
+              <PrimeSelect
+                value={adminStatus}
+                onChange={setAdminStatus}
+                options={[
+                  { value: "", label: "همه وضعیت‌ها" },
+                  { value: "active", label: "فعال" },
+                  { value: "disabled", label: "غیرفعال" },
+                ]}
+              />
               <ChevronLeft size={18} />
             </label>
           </div>
@@ -1275,32 +1283,43 @@ export default function PrimePanelV2({
             </button>
 
             <label>
-              <select value={clientSort} onChange={(e) => setClientSort(e.target.value)}>
-                <option value="newest">جدیدترین</option>
-                <option value="oldest">قدیمی‌ترین</option>
-              </select>
+              <PrimeSelect
+                value={clientSort}
+                onChange={setClientSort}
+                options={[
+                  { value: "newest", label: "جدیدترین" },
+                  { value: "oldest", label: "قدیمی‌ترین" },
+                ]}
+              />
               <ChevronLeft size={18} />
             </label>
 
             {user.role === "owner" && (
               <label>
-                <select value={clientAdminFilter} onChange={(e) => setClientAdminFilter(e.target.value)}>
-                  <option value="">Admin (نماینده)</option>
-                  {adminOptions.map((admin) => (
-                    <option key={admin.id} value={admin.id}>{admin.display_name || admin.username}</option>
-                  ))}
-                </select>
+                <PrimeSelect
+                  value={clientAdminFilter}
+                  onChange={setClientAdminFilter}
+                  placeholder="Admin (نماینده)"
+                  options={[
+                    { value: "", label: "همه نماینده‌ها" },
+                    ...adminOptions.map((admin) => ({ value: admin.id, label: admin.display_name || admin.username })),
+                  ]}
+                />
                 <ChevronLeft size={18} />
               </label>
             )}
 
             <label>
-              <select value={clientStatus} onChange={(e) => setClientStatus(e.target.value)}>
-                <option value="">همه وضعیت‌ها</option>
-                <option value="active">فعال</option>
-                <option value="disabled">غیرفعال</option>
-                <option value="error">خطا</option>
-              </select>
+              <PrimeSelect
+                value={clientStatus}
+                onChange={setClientStatus}
+                options={[
+                  { value: "", label: "همه وضعیت‌ها" },
+                  { value: "active", label: "فعال" },
+                  { value: "disabled", label: "غیرفعال" },
+                  { value: "error", label: "خطا" },
+                ]}
+              />
               <ChevronLeft size={18} />
             </label>
           </div>
@@ -1523,30 +1542,42 @@ export default function PrimePanelV2({
 
             <div className="primeCommerceFilters">
               <label>
-                <select value={paymentStatus} onChange={(e) => setPaymentStatus(e.target.value)}>
-                  <option value="">همه وضعیت‌ها</option>
-                  <option value="pending">در انتظار</option>
-                  <option value="awaiting_review">نیازمند بررسی</option>
-                  <option value="paid">پرداخت‌شده</option>
-                  <option value="rejected">ردشده</option>
-                  <option value="failed">ناموفق</option>
-                </select>
+                <PrimeSelect
+                  value={paymentStatus}
+                  onChange={setPaymentStatus}
+                  options={[
+                    { value: "", label: "همه وضعیت‌ها" },
+                    { value: "pending", label: "در انتظار" },
+                    { value: "awaiting_review", label: "نیازمند بررسی" },
+                    { value: "paid", label: "پرداخت‌شده" },
+                    { value: "rejected", label: "ردشده" },
+                    { value: "failed", label: "ناموفق" },
+                  ]}
+                />
                 <ChevronLeft size={17} />
               </label>
               <label>
-                <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
-                  <option value="">همه روش‌ها</option>
-                  <option value="gateway">درگاه</option>
-                  <option value="card_to_card">کارت‌به‌کارت</option>
-                  <option value="customer_wallet">کیف پول مشتری</option>
-                </select>
+                <PrimeSelect
+                  value={paymentMethod}
+                  onChange={setPaymentMethod}
+                  options={[
+                    { value: "", label: "همه روش‌ها" },
+                    { value: "gateway", label: "درگاه" },
+                    { value: "card_to_card", label: "کارت‌به‌کارت" },
+                    { value: "customer_wallet", label: "کیف پول مشتری" },
+                  ]}
+                />
                 <ChevronLeft size={17} />
               </label>
               <label>
-                <select value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)}>
-                  <option value="">همه تاریخ‌ها</option>
-                  <option value="today">امروز</option>
-                </select>
+                <PrimeSelect
+                  value={paymentDate}
+                  onChange={setPaymentDate}
+                  options={[
+                    { value: "", label: "همه تاریخ‌ها" },
+                    { value: "today", label: "امروز" },
+                  ]}
+                />
                 <ChevronLeft size={17} />
               </label>
               <button onClick={() => loadPayments(1)}>اعمال</button>
