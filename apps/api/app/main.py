@@ -2556,3 +2556,98 @@ async def gateway_callback(
         url=settings.public_web_url.rstrip("/") + f"/?payment={result}{suffix}",
         status_code=302,
     )
+
+
+# ---- Readiness and recovery -------------------------------------------------
+
+from sqlalchemy import text as sql_text
+
+from app.services.backup import export_backup, merge_restore
+
+
+@app.get("/ready")
+async def readiness():
+    from redis.asyncio import Redis
+
+    database_ok = False
+    redis_ok = False
+    try:
+        async with SessionLocal() as db:
+            await db.execute(sql_text("SELECT 1"))
+            database_ok = True
+    except Exception:
+        database_ok = False
+
+    redis = Redis.from_url(settings.redis_url, decode_responses=True)
+    try:
+        redis_ok = bool(await redis.ping())
+    except Exception:
+        redis_ok = False
+    finally:
+        try:
+            await redis.aclose()
+        except Exception:
+            pass
+
+    code = 200 if database_ok and redis_ok else 503
+    return Response(
+        content=json.dumps(
+            {
+                "ok": database_ok and redis_ok,
+                "database": database_ok,
+                "redis": redis_ok,
+                "service": "primevpn-api",
+            }
+        ),
+        status_code=code,
+        media_type="application/json",
+    )
+
+
+@app.get(f"{settings.api_prefix}/backups/export")
+async def download_backup(
+    owner: User = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+):
+    from datetime import datetime, timezone
+
+    encrypted = await export_backup(db)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    return Response(
+        content=encrypted.encode(),
+        media_type="application/octet-stream",
+        headers={
+            "Content-Disposition": f'attachment; filename="primevpn-{stamp}.pvbackup"',
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+@app.post(f"{settings.api_prefix}/backups/restore")
+async def restore_backup(
+    request: Request,
+    backup: UploadFile = File(...),
+    owner: User = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+):
+    raw = await backup.read(25 * 1024 * 1024 + 1)
+    if not raw or len(raw) > 25 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="backup must be between 1 byte and 25 MB")
+    try:
+        result = await merge_restore(db, raw.decode())
+        await write_audit(
+            db,
+            actor_user_id=owner.id,
+            action="backup.restore_merge",
+            entity_type="system",
+            entity_id=None,
+            after_data=result,
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+        )
+        await db.commit()
+        return result
+    except Exception as exc:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail="backup could not be restored") from exc
