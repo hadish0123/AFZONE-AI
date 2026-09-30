@@ -1486,3 +1486,656 @@ async def disable_telegram_bot(
     )
     await db.commit()
     return None
+
+
+# ---- Production management completion --------------------------------------
+
+from sqlalchemy import func
+
+from app.models import (
+    AuditLog,
+    AuthSession,
+    BillingEvent,
+    Notification,
+    UserSecurity,
+    WalletTransaction,
+)
+
+
+class AdminUpdateIn(BaseModel):
+    display_name: str | None = Field(default=None, max_length=160)
+    status: AccountStatus | None = None
+    password: str | None = Field(default=None, min_length=10, max_length=200)
+    low_balance_threshold_toman: Decimal | None = Field(default=None, ge=0)
+    debt_limit_toman: Decimal | None = Field(default=None, ge=0)
+    block_new_clients_when_low: bool | None = None
+    block_renewals_when_low: bool | None = None
+
+
+class WalletAdjustmentIn(BaseModel):
+    amount_toman: Decimal
+    note: str = Field(min_length=3, max_length=500)
+
+
+class ConnectionUpdateIn(BaseModel):
+    name: str | None = Field(default=None, min_length=2, max_length=160)
+    base_url: HttpUrl | None = None
+    api_token: str | None = Field(default=None, min_length=8)
+    enabled: bool | None = None
+
+
+class PlanUpdateIn(BaseModel):
+    name: str | None = Field(default=None, min_length=2, max_length=160)
+    enabled: bool | None = None
+    base_price_per_gib_toman: Decimal | None = Field(default=None, gt=0)
+    min_quota_gib: Decimal | None = Field(default=None, ge=0)
+    max_quota_gib: Decimal | None = Field(default=None, gt=0)
+    max_duration_days: int | None = Field(default=None, ge=1, le=3650)
+    default_hwid_limit: int | None = Field(default=None, ge=1, le=100)
+    allow_custom_quota: bool | None = None
+    allow_custom_duration: bool | None = None
+
+
+class RetailPriceIn(BaseModel):
+    retail_price_per_gib_toman: Decimal = Field(gt=0)
+
+
+@app.get(f"{settings.api_prefix}/security/2fa/status")
+async def two_factor_status(
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    security = await db.scalar(select(UserSecurity).where(UserSecurity.user_id == user.id))
+    return {
+        "enabled": bool(security and security.totp_enabled),
+        "recovery_codes_remaining": len(security.recovery_code_hashes or []) if security else 0,
+    }
+
+
+@app.post(f"{settings.api_prefix}/security/2fa/setup")
+async def setup_two_factor(
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    # V1 exposes TOTP only to Owner; Admin authentication remains password +
+    # rotating refresh sessions unless Owner later chooses otherwise.
+    if user.role != Role.OWNER:
+        raise HTTPException(status_code=403, detail="2FA setup is owner-only")
+
+    security = await db.scalar(select(UserSecurity).where(UserSecurity.user_id == user.id))
+    if security is None:
+        security = UserSecurity(user_id=user.id)
+        db.add(security)
+        await db.flush()
+
+    secret = new_totp_secret()
+    recovery_codes, recovery_hashes = generate_recovery_codes()
+    security.encrypted_totp_secret = encrypt_secret(secret)
+    security.totp_enabled = False
+    security.recovery_code_hashes = recovery_hashes
+    await db.commit()
+
+    return {
+        "secret": secret,
+        "otpauth_uri": totp_uri(secret, username=user.username),
+        "recovery_codes": recovery_codes,
+        "message": "Scan the TOTP secret, then call /security/2fa/enable with a current code.",
+    }
+
+
+@app.post(f"{settings.api_prefix}/security/2fa/enable")
+async def enable_two_factor(
+    payload: TwoFactorCodeIn,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    security = await db.scalar(select(UserSecurity).where(UserSecurity.user_id == user.id))
+    if not security or not security.encrypted_totp_secret:
+        raise HTTPException(status_code=409, detail="run 2FA setup first")
+    if not verify_totp(decrypt_secret(security.encrypted_totp_secret), payload.code):
+        raise HTTPException(status_code=400, detail="invalid TOTP code")
+    security.totp_enabled = True
+    await db.commit()
+    return {"enabled": True}
+
+
+@app.post(f"{settings.api_prefix}/security/2fa/disable")
+async def disable_two_factor(
+    payload: TwoFactorCodeIn,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    security = await db.scalar(select(UserSecurity).where(UserSecurity.user_id == user.id))
+    if not security or not security.totp_enabled or not security.encrypted_totp_secret:
+        return {"enabled": False}
+    secret = decrypt_secret(security.encrypted_totp_secret)
+    if not verify_totp(secret, payload.code):
+        raise HTTPException(status_code=400, detail="invalid TOTP code")
+    security.totp_enabled = False
+    security.encrypted_totp_secret = None
+    security.recovery_code_hashes = []
+    await db.commit()
+    return {"enabled": False}
+
+
+@app.patch(f"{settings.api_prefix}/admins/{{admin_id}}")
+async def update_admin(
+    admin_id: uuid.UUID,
+    payload: AdminUpdateIn,
+    request: Request,
+    owner: User = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+):
+    admin = await db.scalar(
+        select(User).where(User.id == admin_id, User.role == Role.ADMIN).with_for_update()
+    )
+    if not admin:
+        raise HTTPException(status_code=404, detail="admin not found")
+    wallet = await db.scalar(
+        select(Wallet).where(Wallet.owner_user_id == admin.id).with_for_update()
+    )
+    before = {
+        "display_name": admin.display_name,
+        "status": admin.status.value,
+        "low_balance_threshold_toman": str(wallet.low_balance_threshold_toman),
+        "debt_limit_toman": str(wallet.debt_limit_toman),
+        "block_new_clients_when_low": wallet.block_new_clients_when_low,
+        "block_renewals_when_low": wallet.block_renewals_when_low,
+    }
+
+    if payload.display_name is not None:
+        admin.display_name = payload.display_name
+    if payload.status is not None:
+        admin.status = payload.status
+    if payload.password is not None:
+        admin.password_hash = hash_password(payload.password)
+    if payload.low_balance_threshold_toman is not None:
+        wallet.low_balance_threshold_toman = payload.low_balance_threshold_toman
+    if payload.debt_limit_toman is not None:
+        wallet.debt_limit_toman = payload.debt_limit_toman
+    if payload.block_new_clients_when_low is not None:
+        wallet.block_new_clients_when_low = payload.block_new_clients_when_low
+    if payload.block_renewals_when_low is not None:
+        wallet.block_renewals_when_low = payload.block_renewals_when_low
+
+    await write_audit(
+        db,
+        actor_user_id=owner.id,
+        action="admin.update",
+        entity_type="admin",
+        entity_id=str(admin.id),
+        before_data=before,
+        after_data={
+            "display_name": admin.display_name,
+            "status": admin.status.value,
+            "password_rotated": payload.password is not None,
+            "low_balance_threshold_toman": str(wallet.low_balance_threshold_toman),
+            "debt_limit_toman": str(wallet.debt_limit_toman),
+            "block_new_clients_when_low": wallet.block_new_clients_when_low,
+            "block_renewals_when_low": wallet.block_renewals_when_low,
+        },
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+    return {"ok": True}
+
+
+@app.post(f"{settings.api_prefix}/admins/{{admin_id}}/wallet/adjust")
+async def adjust_admin_wallet(
+    admin_id: uuid.UUID,
+    payload: WalletAdjustmentIn,
+    request: Request,
+    owner: User = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+):
+    if payload.amount_toman == 0:
+        raise HTTPException(status_code=400, detail="adjustment amount cannot be zero")
+    admin = await db.scalar(select(User).where(User.id == admin_id, User.role == Role.ADMIN))
+    if not admin:
+        raise HTTPException(status_code=404, detail="admin not found")
+    wallet = await db.scalar(select(Wallet).where(Wallet.owner_user_id == admin.id))
+    txn = await apply_wallet_transaction(
+        db,
+        wallet_id=wallet.id,
+        txn_type=WalletTxnType.ADJUSTMENT,
+        amount_toman=payload.amount_toman,
+        idempotency_key=f"adjustment:{uuid.uuid4()}",
+        actor_user_id=owner.id,
+        reference_type="admin",
+        reference_id=str(admin.id),
+        description=payload.note,
+    )
+    await write_audit(
+        db,
+        actor_user_id=owner.id,
+        action="wallet.adjust",
+        entity_type="wallet",
+        entity_id=str(wallet.id),
+        after_data={
+            "admin_id": str(admin.id),
+            "amount_toman": str(payload.amount_toman),
+            "balance_after_toman": str(txn.balance_after_toman),
+            "note": payload.note,
+        },
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+    return {
+        "transaction_id": str(txn.id),
+        "balance_toman": str(txn.balance_after_toman),
+    }
+
+
+@app.get(f"{settings.api_prefix}/wallet/transactions")
+async def wallet_transactions(
+    limit: int = 100,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    limit = max(1, min(limit, 500))
+    wallet = await db.scalar(select(Wallet).where(Wallet.owner_user_id == user.id))
+    if not wallet:
+        return []
+    rows = (
+        await db.execute(
+            select(WalletTransaction)
+            .where(WalletTransaction.wallet_id == wallet.id)
+            .order_by(WalletTransaction.created_at.desc())
+            .limit(limit)
+        )
+    ).scalars()
+    return [{
+        "id": str(item.id),
+        "type": item.txn_type.value,
+        "amount_toman": str(item.amount_toman),
+        "balance_after_toman": str(item.balance_after_toman),
+        "reference_type": item.reference_type,
+        "reference_id": item.reference_id,
+        "description": item.description,
+        "created_at": item.created_at,
+    } for item in rows]
+
+
+@app.get(f"{settings.api_prefix}/admins/{{admin_id}}/wallet/transactions")
+async def owner_admin_wallet_transactions(
+    admin_id: uuid.UUID,
+    limit: int = 100,
+    _: User = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+):
+    limit = max(1, min(limit, 500))
+    wallet = await db.scalar(select(Wallet).where(Wallet.owner_user_id == admin_id))
+    if not wallet:
+        raise HTTPException(status_code=404, detail="admin wallet not found")
+    rows = (
+        await db.execute(
+            select(WalletTransaction)
+            .where(WalletTransaction.wallet_id == wallet.id)
+            .order_by(WalletTransaction.created_at.desc())
+            .limit(limit)
+        )
+    ).scalars()
+    return [{
+        "id": str(item.id),
+        "type": item.txn_type.value,
+        "amount_toman": str(item.amount_toman),
+        "balance_after_toman": str(item.balance_after_toman),
+        "description": item.description,
+        "created_at": item.created_at,
+    } for item in rows]
+
+
+@app.patch(f"{settings.api_prefix}/connections/{{connection_id}}")
+async def update_connection(
+    connection_id: uuid.UUID,
+    payload: ConnectionUpdateIn,
+    request: Request,
+    owner: User = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+):
+    row = await db.scalar(
+        select(PasarGuardConnection).where(PasarGuardConnection.id == connection_id).with_for_update()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="connection not found")
+
+    before = {"name": row.name, "base_url": row.base_url, "enabled": row.enabled}
+    if payload.name is not None:
+        row.name = payload.name
+    if payload.base_url is not None:
+        row.base_url = str(payload.base_url).rstrip("/")
+    if payload.api_token is not None:
+        row.encrypted_api_token = encrypt_secret(payload.api_token)
+    if payload.enabled is not None:
+        row.enabled = payload.enabled
+
+    pg = PasarGuardClient(row.base_url, row.encrypted_api_token)
+    try:
+        await pg.health()
+        row.last_error = None
+    except Exception as exc:
+        row.last_error = str(exc)[:1000]
+        raise HTTPException(status_code=400, detail="updated PasarGuard connection failed validation") from exc
+
+    await write_audit(
+        db,
+        actor_user_id=owner.id,
+        action="pasarguard_connection.update",
+        entity_type="pasarguard_connection",
+        entity_id=str(row.id),
+        before_data=before,
+        after_data={"name": row.name, "base_url": row.base_url, "enabled": row.enabled},
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+    return {"ok": True}
+
+
+@app.post(f"{settings.api_prefix}/connections/{{connection_id}}/test")
+async def test_connection(
+    connection_id: uuid.UUID,
+    _: User = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+):
+    row = await db.scalar(select(PasarGuardConnection).where(PasarGuardConnection.id == connection_id))
+    if not row:
+        raise HTTPException(status_code=404, detail="connection not found")
+    pg = PasarGuardClient(row.base_url, row.encrypted_api_token)
+    try:
+        identity = await pg.health()
+        row.last_error = None
+        await db.commit()
+        return {"connected": True, "identity": identity}
+    except Exception as exc:
+        row.last_error = str(exc)[:1000]
+        await db.commit()
+        raise HTTPException(status_code=502, detail="PasarGuard connection failed") from exc
+
+
+@app.delete(f"{settings.api_prefix}/connections/{{connection_id}}", status_code=204)
+async def disable_connection(
+    connection_id: uuid.UUID,
+    request: Request,
+    owner: User = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+):
+    row = await db.scalar(select(PasarGuardConnection).where(PasarGuardConnection.id == connection_id))
+    if not row:
+        raise HTTPException(status_code=404, detail="connection not found")
+    row.enabled = False
+    await write_audit(
+        db,
+        actor_user_id=owner.id,
+        action="pasarguard_connection.disable",
+        entity_type="pasarguard_connection",
+        entity_id=str(row.id),
+        after_data={"enabled": False},
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+    return None
+
+
+@app.patch(f"{settings.api_prefix}/plans/{{plan_id}}")
+async def update_plan(
+    plan_id: uuid.UUID,
+    payload: PlanUpdateIn,
+    request: Request,
+    owner: User = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+):
+    plan = await db.scalar(select(Plan).where(Plan.id == plan_id).with_for_update())
+    if not plan:
+        raise HTTPException(status_code=404, detail="plan not found")
+    before = {
+        "name": plan.name,
+        "enabled": plan.enabled,
+        "base_price_per_gib_toman": str(plan.base_price_per_gib_toman),
+    }
+    for field in (
+        "name",
+        "enabled",
+        "base_price_per_gib_toman",
+        "min_quota_gib",
+        "max_quota_gib",
+        "max_duration_days",
+        "default_hwid_limit",
+        "allow_custom_quota",
+        "allow_custom_duration",
+    ):
+        value = getattr(payload, field)
+        if value is not None:
+            setattr(plan, field, value)
+
+    if (
+        plan.min_quota_gib is not None
+        and plan.max_quota_gib is not None
+        and plan.min_quota_gib > plan.max_quota_gib
+    ):
+        raise HTTPException(status_code=400, detail="min quota cannot exceed max quota")
+
+    await write_audit(
+        db,
+        actor_user_id=owner.id,
+        action="plan.update",
+        entity_type="plan",
+        entity_id=str(plan.id),
+        before_data=before,
+        after_data={
+            "name": plan.name,
+            "enabled": plan.enabled,
+            "base_price_per_gib_toman": str(plan.base_price_per_gib_toman),
+        },
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+    return {"ok": True}
+
+
+@app.delete(f"{settings.api_prefix}/plans/{{plan_id}}", status_code=204)
+async def disable_plan(
+    plan_id: uuid.UUID,
+    request: Request,
+    owner: User = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+):
+    plan = await db.scalar(select(Plan).where(Plan.id == plan_id))
+    if not plan:
+        raise HTTPException(status_code=404, detail="plan not found")
+    plan.enabled = False
+    await write_audit(
+        db,
+        actor_user_id=owner.id,
+        action="plan.disable",
+        entity_type="plan",
+        entity_id=str(plan.id),
+        after_data={"enabled": False},
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+    return None
+
+
+@app.delete(f"{settings.api_prefix}/admins/{{admin_id}}/plans/{{plan_id}}", status_code=204)
+async def unassign_admin_plan(
+    admin_id: uuid.UUID,
+    plan_id: uuid.UUID,
+    _: User = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+):
+    item = await db.scalar(
+        select(AdminPlan).where(AdminPlan.admin_id == admin_id, AdminPlan.plan_id == plan_id)
+    )
+    if not item:
+        return None
+    item.enabled = False
+    await db.commit()
+    return None
+
+
+@app.patch(f"{settings.api_prefix}/my-plans/{{plan_id}}/retail-price")
+async def update_my_retail_price(
+    plan_id: uuid.UUID,
+    payload: RetailPriceIn,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if user.role != Role.ADMIN:
+        raise HTTPException(status_code=403, detail="admin access required")
+    item = await db.scalar(
+        select(AdminPlan).where(
+            AdminPlan.admin_id == user.id,
+            AdminPlan.plan_id == plan_id,
+            AdminPlan.enabled.is_(True),
+        ).with_for_update()
+    )
+    if not item:
+        raise HTTPException(status_code=404, detail="assigned plan not found")
+    plan = await db.scalar(select(Plan).where(Plan.id == plan_id))
+    if payload.retail_price_per_gib_toman < plan.base_price_per_gib_toman:
+        raise HTTPException(status_code=400, detail="retail price cannot be below owner cost")
+    item.retail_price_per_gib_toman = payload.retail_price_per_gib_toman
+    await db.commit()
+    return {"ok": True, "retail_price_per_gib_toman": str(item.retail_price_per_gib_toman)}
+
+
+@app.get(f"{settings.api_prefix}/notifications")
+async def list_notifications(
+    unread_only: bool = False,
+    limit: int = 100,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    stmt = select(Notification).where(Notification.user_id == user.id)
+    if unread_only:
+        stmt = stmt.where(Notification.is_read.is_(False))
+    rows = (
+        await db.execute(stmt.order_by(Notification.created_at.desc()).limit(max(1, min(limit, 300))))
+    ).scalars()
+    return [{
+        "id": str(item.id),
+        "kind": item.kind,
+        "title": item.title,
+        "message": item.message,
+        "entity_type": item.entity_type,
+        "entity_id": item.entity_id,
+        "is_read": item.is_read,
+        "created_at": item.created_at,
+    } for item in rows]
+
+
+@app.post(f"{settings.api_prefix}/notifications/{{notification_id}}/read")
+async def read_notification(
+    notification_id: uuid.UUID,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    row = await db.scalar(
+        select(Notification).where(
+            Notification.id == notification_id,
+            Notification.user_id == user.id,
+        )
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="notification not found")
+    row.is_read = True
+    await db.commit()
+    return {"ok": True}
+
+
+@app.get(f"{settings.api_prefix}/audit-logs")
+async def audit_logs(
+    limit: int = 100,
+    _: User = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+):
+    rows = (
+        await db.execute(
+            select(AuditLog)
+            .order_by(AuditLog.created_at.desc())
+            .limit(max(1, min(limit, 500)))
+        )
+    ).scalars()
+    return [{
+        "id": str(item.id),
+        "actor_user_id": str(item.actor_user_id) if item.actor_user_id else None,
+        "action": item.action,
+        "entity_type": item.entity_type,
+        "entity_id": item.entity_id,
+        "before_data": item.before_data,
+        "after_data": item.after_data,
+        "ip_address": item.ip_address,
+        "created_at": item.created_at,
+    } for item in rows]
+
+
+@app.get(f"{settings.api_prefix}/dashboard/summary")
+async def dashboard_summary(
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    client_stmt = select(func.count(Client.id))
+    usage_stmt = select(func.coalesce(func.sum(Client.last_lifetime_usage_bytes), 0))
+    order_stmt = select(func.count(Order.id))
+    payment_stmt = select(func.coalesce(func.sum(Payment.amount_toman), 0)).where(
+        Payment.status == PaymentStatus.PAID
+    )
+    if user.role == Role.ADMIN:
+        client_stmt = client_stmt.where(Client.admin_id == user.id)
+        usage_stmt = usage_stmt.where(Client.admin_id == user.id)
+        order_stmt = order_stmt.where(Order.admin_id == user.id)
+        payment_stmt = payment_stmt.where(Payment.admin_id == user.id)
+
+    wallet = await db.scalar(select(Wallet).where(Wallet.owner_user_id == user.id))
+    return {
+        "role": user.role.value,
+        "admins": int(await db.scalar(select(func.count(User.id)).where(User.role == Role.ADMIN)))
+        if user.role == Role.OWNER else None,
+        "clients": int(await db.scalar(client_stmt) or 0),
+        "lifetime_usage_bytes": int(await db.scalar(usage_stmt) or 0),
+        "orders": int(await db.scalar(order_stmt) or 0),
+        "paid_volume_toman": str(await db.scalar(payment_stmt) or 0),
+        "wallet_balance_toman": str(wallet.balance_toman if wallet else 0),
+        "pending_payments": int(
+            await db.scalar(
+                select(func.count(Payment.id)).where(
+                    Payment.status == PaymentStatus.AWAITING_REVIEW,
+                    *([] if user.role == Role.OWNER else [Payment.admin_id == user.id]),
+                )
+            ) or 0
+        ),
+    }
+
+
+@app.get(f"{settings.api_prefix}/reports/financial")
+async def financial_report(
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    payment_stmt = select(
+        func.coalesce(func.sum(Payment.amount_toman), 0)
+    ).where(Payment.status == PaymentStatus.PAID)
+    billing_stmt = select(
+        func.coalesce(func.sum(BillingEvent.amount_toman), 0)
+    )
+    orders_stmt = select(func.count(Order.id)).where(Order.status == OrderStatus.PROVISIONED)
+
+    if user.role == Role.ADMIN:
+        payment_stmt = payment_stmt.where(Payment.admin_id == user.id)
+        billing_stmt = billing_stmt.where(BillingEvent.admin_id == user.id)
+        orders_stmt = orders_stmt.where(Order.admin_id == user.id)
+
+    revenue = Decimal(await db.scalar(payment_stmt) or 0)
+    cost = Decimal(await db.scalar(billing_stmt) or 0)
+    return {
+        "sales_toman": str(revenue),
+        "actual_usage_cost_toman": str(cost),
+        "gross_margin_toman": str(revenue - cost),
+        "provisioned_orders": int(await db.scalar(orders_stmt) or 0),
+    }
