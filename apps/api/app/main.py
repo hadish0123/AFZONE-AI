@@ -548,7 +548,7 @@ async def list_plans(
     } for admin_plan, plan in rows]
 
 
-@app.get(f"{settings.api_prefix}/admins/{admin_id}/plans")
+@app.get(f"{settings.api_prefix}/admins/{{admin_id}}/plans")
 async def list_admin_assignments(
     admin_id: uuid.UUID,
     _: User = Depends(require_owner),
