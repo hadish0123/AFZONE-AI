@@ -43,7 +43,7 @@ from app.models import (
     Wallet,
     WalletTxnType,
 )
-from app.services.pasarguard import PasarGuardClient, PasarGuardError
+from app.services.pasarguard import PasarGuardClient, PasarGuardError, normalize_subscription_url
 from app.services.wallet import apply_wallet_transaction
 from app.services.telegram_webhook import (
     TELEGRAM_CONTROL_STREAM,
@@ -173,10 +173,41 @@ async def ensure_scale_indexes() -> None:
             await conn.execute(text(statement))
 
 
+async def normalize_saved_subscription_urls() -> None:
+    # Older PasarGuard responses may have stored paths such as /sub/<token>.
+    # Convert them once to absolute URLs so existing clients and Telegram
+    # messages are immediately importable without waiting for the billing sync.
+    from app.models import Client
+
+    last_id = None
+    while True:
+        async with SessionLocal() as db:
+            stmt = (
+                select(Client, PasarGuardConnection.base_url)
+                .join(PasarGuardConnection, PasarGuardConnection.id == Client.connection_id)
+                .where(Client.subscription_url.is_not(None))
+                .where(Client.subscription_url.like("/%"))
+                .order_by(Client.id)
+                .limit(500)
+            )
+            if last_id is not None:
+                stmt = stmt.where(Client.id > last_id)
+            rows = (await db.execute(stmt)).all()
+            if not rows:
+                return
+
+            for client, base_url in rows:
+                client.subscription_url = normalize_subscription_url(base_url, client.subscription_url)
+
+            last_id = rows[-1][0].id
+            await db.commit()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await ensure_owner()
     await ensure_scale_indexes()
+    await normalize_saved_subscription_urls()
     redis = Redis.from_url(settings.redis_url, decode_responses=True)
     await redis.ping()
     app.state.redis = redis
