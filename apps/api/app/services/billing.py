@@ -102,7 +102,9 @@ async def bill_lifetime_usage(
     )
     db.add(event)
 
+    from datetime import datetime, timezone
     checkpoint.last_lifetime_usage_bytes = current_lifetime_usage_bytes
+    checkpoint.last_billed_at = datetime.now(timezone.utc)
     checkpoint.billing_suspended = False
     checkpoint.anomaly_reason = None
     client.last_lifetime_usage_bytes = current_lifetime_usage_bytes
