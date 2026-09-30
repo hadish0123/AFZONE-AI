@@ -34,7 +34,10 @@ from app.models import (
     TelegramBot,
     TelegramBotPlan,
     User,
+    Wallet,
 )
+from app.services.customer_wallet import apply_customer_wallet_transaction
+from app.services.orders import provision_paid_order
 from app.services.commerce import (
     create_card_order_payment,
     create_customer_card_topup,
@@ -347,6 +350,206 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
         kb.button(text="↩️ تغییر پلن", callback_data="main:buy")
         kb.adjust(1)
         await target.answer(text, reply_markup=kb.as_markup(), parse_mode="HTML")
+
+
+    async def manager_context(tg_user):
+        async with SessionLocal() as db:
+            bot_row = await db.scalar(
+                select(TelegramBot).where(TelegramBot.id == bot_id)
+            )
+            if not bot_row:
+                return None, None
+            admin = await db.scalar(
+                select(User).where(User.id == bot_row.admin_id)
+            )
+            if not admin or not admin.telegram_id or int(admin.telegram_id) != int(tg_user.id):
+                return None, None
+            return bot_row, admin
+
+    def manager_menu():
+        kb = InlineKeyboardBuilder()
+        kb.button(text="📊 داشبورد", callback_data="mgmt:dashboard")
+        kb.button(text="🧾 رسیدهای منتظر", callback_data="mgmt:pending")
+        kb.button(text="📦 سفارش‌های اخیر", callback_data="mgmt:orders")
+        kb.button(text="💰 کیف پول نماینده", callback_data="mgmt:wallet")
+        kb.adjust(2, 2)
+        return kb.as_markup()
+
+    @router.message(Command("admin"))
+    async def admin_panel(message: Message):
+        bot_row, admin = await manager_context(message.from_user)
+        if not bot_row or not admin:
+            return
+        await message.answer(
+            "🛠 <b>پنل مدیریت فروش</b>\nفقط برای مدیر این ربات قابل مشاهده است.",
+            parse_mode="HTML",
+            reply_markup=manager_menu(),
+        )
+
+    @router.callback_query(F.data.startswith("mgmt:"))
+    async def manager_actions(callback: CallbackQuery):
+        bot_row, admin = await manager_context(callback.from_user)
+        if not bot_row or not admin:
+            await callback.answer("دسترسی ندارید.", show_alert=True)
+            return
+        action = callback.data.split(":", 1)[1]
+        async with SessionLocal() as db:
+            if action == "dashboard":
+                customers = int(await db.scalar(
+                    select(func.count(Customer.id)).where(Customer.admin_id == admin.id)
+                ) or 0)
+                orders = int(await db.scalar(
+                    select(func.count(Order.id)).where(Order.admin_id == admin.id)
+                ) or 0)
+                pending = int(await db.scalar(
+                    select(func.count(Payment.id)).where(
+                        Payment.admin_id == admin.id,
+                        Payment.status == PaymentStatus.AWAITING_REVIEW,
+                    )
+                ) or 0)
+                wallet = await db.scalar(select(Wallet).where(Wallet.owner_user_id == admin.id))
+                await callback.message.answer(
+                    "📊 <b>داشبورد نماینده</b>\n\n"
+                    f"مشتری‌ها: {customers}\n"
+                    f"سفارش‌ها: {orders}\n"
+                    f"رسید منتظر: {pending}\n"
+                    f"کیف پول: {money_text(wallet.balance_toman if wallet else 0)}",
+                    parse_mode="HTML",
+                    reply_markup=manager_menu(),
+                )
+            elif action == "wallet":
+                wallet = await db.scalar(select(Wallet).where(Wallet.owner_user_id == admin.id))
+                await callback.message.answer(
+                    f"💰 موجودی کیف پول نماینده:\n<b>{money_text(wallet.balance_toman if wallet else 0)}</b>",
+                    parse_mode="HTML",
+                    reply_markup=manager_menu(),
+                )
+            elif action == "orders":
+                rows = (
+                    await db.execute(
+                        select(Order)
+                        .where(Order.admin_id == admin.id)
+                        .order_by(Order.created_at.desc())
+                        .limit(10)
+                    )
+                ).scalars().all()
+                lines = ["📦 <b>۱۰ سفارش اخیر</b>"]
+                for order in rows:
+                    lines.append(
+                        f"\n• {str(order.id)[:8]} · {order.status.value}\n"
+                        f"{money_text(order.retail_amount_toman)} · "
+                        f"{Decimal(order.quota_bytes) / Decimal(1024**3):.0f} GB"
+                    )
+                await callback.message.answer(
+                    "\n".join(lines) if rows else "سفارشی وجود ندارد.",
+                    parse_mode="HTML",
+                    reply_markup=manager_menu(),
+                )
+            elif action == "pending":
+                rows = (
+                    await db.execute(
+                        select(Payment)
+                        .where(
+                            Payment.admin_id == admin.id,
+                            Payment.status == PaymentStatus.AWAITING_REVIEW,
+                        )
+                        .order_by(Payment.created_at.asc())
+                        .limit(10)
+                    )
+                ).scalars().all()
+                if not rows:
+                    await callback.message.answer("✅ رسید منتظری وجود ندارد.", reply_markup=manager_menu())
+                for payment in rows:
+                    purpose = (payment.meta or {}).get("purpose")
+                    if purpose not in {"order_card", "customer_wallet_topup"}:
+                        continue
+                    kb = InlineKeyboardBuilder()
+                    kb.button(text="✅ تأیید", callback_data=f"review:yes:{payment.id}")
+                    kb.button(text="❌ رد", callback_data=f"review:no:{payment.id}")
+                    kb.adjust(2)
+                    await callback.message.answer(
+                        "🧾 <b>رسید منتظر</b>\n"
+                        f"مبلغ: {money_text(payment.amount_toman)}\n"
+                        f"نوع: {purpose}\n"
+                        f"شناسه: {str(payment.id)[:8]}",
+                        parse_mode="HTML",
+                        reply_markup=kb.as_markup(),
+                    )
+        await callback.answer()
+
+    @router.callback_query(F.data.startswith("review:"))
+    async def manager_review(callback: CallbackQuery):
+        from datetime import datetime, timezone
+
+        bot_row, admin = await manager_context(callback.from_user)
+        if not bot_row or not admin:
+            await callback.answer("دسترسی ندارید.", show_alert=True)
+            return
+        try:
+            _, decision, raw_id = callback.data.split(":", 2)
+            payment_id = uuid.UUID(raw_id)
+        except Exception:
+            await callback.answer("شناسه نامعتبر است.", show_alert=True)
+            return
+
+        async with SessionLocal() as db:
+            payment = await db.scalar(
+                select(Payment).where(
+                    Payment.id == payment_id,
+                    Payment.admin_id == admin.id,
+                ).with_for_update()
+            )
+            if not payment or payment.status != PaymentStatus.AWAITING_REVIEW:
+                await callback.answer("این پرداخت قبلاً بررسی شده است.", show_alert=True)
+                return
+            purpose = (payment.meta or {}).get("purpose")
+            approved = decision == "yes"
+
+            try:
+                if approved and purpose == "order_card":
+                    order = await db.scalar(
+                        select(Order).where(Order.id == payment.order_id).with_for_update()
+                    )
+                    if not order:
+                        raise ValueError("order not found")
+                    payment.status = PaymentStatus.PAID
+                    order.status = OrderStatus.PAID
+                    client = await provision_paid_order(db, order.id)
+                    payment.provider_reference = str(client.id)
+                elif approved and purpose == "customer_wallet_topup":
+                    if not payment.customer_id:
+                        raise ValueError("customer missing")
+                    txn = await apply_customer_wallet_transaction(
+                        db,
+                        customer_id=payment.customer_id,
+                        amount_toman=payment.amount_toman,
+                        txn_type="card_topup",
+                        idempotency_key=f"payment:{payment.id}",
+                        reference_type="payment",
+                        reference_id=str(payment.id),
+                        description="Approved from Telegram manager panel",
+                    )
+                    payment.status = PaymentStatus.PAID
+                    payment.provider_reference = str(txn.id)
+                elif approved:
+                    raise ValueError("این نوع پرداخت از ربات قابل تأیید نیست")
+                else:
+                    payment.status = PaymentStatus.REJECTED
+                    if payment.order_id:
+                        order = await db.scalar(select(Order).where(Order.id == payment.order_id))
+                        if order and order.status == OrderStatus.PENDING:
+                            order.status = OrderStatus.CANCELLED
+
+                payment.reviewed_at = datetime.now(timezone.utc)
+                payment.reviewed_by = admin.id
+                await db.commit()
+                await callback.message.edit_text(
+                    "✅ پرداخت تأیید شد." if approved else "❌ پرداخت رد شد."
+                )
+                await callback.answer()
+            except Exception as exc:
+                await db.rollback()
+                await callback.answer(str(exc)[:180], show_alert=True)
 
     @router.message(CommandStart())
     @router.message(Command("menu"))
