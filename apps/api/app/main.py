@@ -508,14 +508,23 @@ async def list_groups(
             .distinct()
             .order_by(PasarGuardGroup.name)
         )
-    groups = (await db.execute(stmt)).scalars()
+    groups = list((await db.execute(stmt)).scalars())
+    if user.role == Role.OWNER:
+        return [{
+            "id": str(group.id),
+            "connection_id": str(group.connection_id),
+            "remote_group_id": group.remote_group_id,
+            "name": group.name,
+            "enabled": group.enabled_remote,
+            "inbound_tags": group.inbound_tags,
+        } for group in groups]
+
+    # Admins only receive the group metadata needed by their own assigned plans.
+    # Do not expose central PasarGuard connection IDs, remote IDs or inbound tags.
     return [{
         "id": str(group.id),
-        "connection_id": str(group.connection_id),
-        "remote_group_id": group.remote_group_id,
         "name": group.name,
         "enabled": group.enabled_remote,
-        "inbound_tags": group.inbound_tags,
     } for group in groups]
 
 
@@ -664,7 +673,11 @@ async def _resolve_client_admin(
     if not requested_admin_id:
         raise HTTPException(status_code=400, detail="admin_id is required for owner-created clients")
     admin = await db.scalar(
-        select(User).where(User.id == requested_admin_id, User.role == Role.ADMIN)
+        select(User).where(
+            User.id == requested_admin_id,
+            User.role == Role.ADMIN,
+            User.status == AccountStatus.ACTIVE,
+        )
     )
     if not admin:
         raise HTTPException(status_code=404, detail="admin not found")
@@ -1283,6 +1296,14 @@ async def review_payment(
             raise HTTPException(status_code=403, detail="review access denied")
         if not payment.customer_id:
             raise HTTPException(status_code=409, detail="customer payment has no customer")
+        customer = await db.scalar(
+            select(Customer).where(
+                Customer.id == payment.customer_id,
+                Customer.admin_id == payment.admin_id,
+            )
+        )
+        if not customer:
+            raise HTTPException(status_code=409, detail="customer/payment ownership mismatch")
         if payload.approved:
             txn = await apply_customer_wallet_transaction(
                 db,
@@ -1315,6 +1336,8 @@ async def review_payment(
         )
         if not order:
             raise HTTPException(status_code=404, detail="order not found")
+        if order.admin_id != payment.admin_id:
+            raise HTTPException(status_code=409, detail="order/payment ownership mismatch")
 
         if payload.approved:
             payment.status = PaymentStatus.PAID
@@ -2857,7 +2880,7 @@ async def directory_clients(
             "plan_id": str(item.plan_id) if item.plan_id else None,
             "group_id": str(item.group_id),
             "group_name": groups_map.get(item.group_id),
-            "connection_name": connections_map.get(item.connection_id),
+            "connection_name": connections_map.get(item.connection_id) if user.role == Role.OWNER else None,
             "created_at": item.created_at,
         } for item in rows],
         **_page_meta(total, page, page_size),
