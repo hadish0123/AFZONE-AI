@@ -2477,7 +2477,7 @@ export default function PrimePanelV2({
       <Modal open={modal === "plan-create"} title="ساخت پلن پایه" onClose={() => setModal(null)}>
         <form className="v2Form primePlanCreateForm" onSubmit={createPlan}>
           <label>نام پلن<input value={planForm.name} onChange={(e) => setPlanForm({ ...planForm, name: e.target.value })} required /></label>
-          <label>Group
+          <label>گروه
             <PrimeSelect
               value={planForm.group_id}
               onChange={(value) => setPlanForm({ ...planForm, group_id: value })}
