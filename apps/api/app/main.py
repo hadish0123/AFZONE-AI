@@ -202,7 +202,7 @@ if settings.cors_origin_list:
     )
 
 
-@app.post(f"{settings.api_prefix}/telegram/webhook/{bot_id}", include_in_schema=False)
+@app.post(f"{settings.api_prefix}/telegram/webhook/{{bot_id}}", include_in_schema=False)
 async def telegram_webhook(bot_id: uuid.UUID, request: Request):
     supplied_secret = request.headers.get("x-telegram-bot-api-secret-token", "")
     expected_secret = telegram_webhook_secret(bot_id)
