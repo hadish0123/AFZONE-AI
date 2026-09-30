@@ -6,7 +6,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel, Field, HttpUrl
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -127,9 +127,32 @@ async def ensure_owner() -> None:
         await db.commit()
 
 
+async def ensure_scale_indexes() -> None:
+    # Multi-tenant list/report paths should stay index-backed as representative
+    # and client counts grow. IF NOT EXISTS makes this a one-time no-op after
+    # the first successful deployment.
+    statements = (
+        "CREATE INDEX IF NOT EXISTS ix_prime_users_role_status_created ON users (role, status, created_at DESC)",
+        "CREATE INDEX IF NOT EXISTS ix_prime_clients_admin_created ON clients (admin_id, created_at DESC)",
+        "CREATE INDEX IF NOT EXISTS ix_prime_clients_admin_status_created ON clients (admin_id, status, created_at DESC)",
+        "CREATE INDEX IF NOT EXISTS ix_prime_clients_status_created ON clients (status, created_at)",
+        "CREATE INDEX IF NOT EXISTS ix_prime_orders_admin_created ON orders (admin_id, created_at DESC)",
+        "CREATE INDEX IF NOT EXISTS ix_prime_payments_admin_created ON payments (admin_id, created_at DESC)",
+        "CREATE INDEX IF NOT EXISTS ix_prime_customers_admin_created ON customers (admin_id, created_at DESC)",
+        "CREATE INDEX IF NOT EXISTS ix_prime_bots_admin_created ON telegram_bots (admin_id, created_at DESC)",
+        "CREATE INDEX IF NOT EXISTS ix_prime_notifications_user_read_created ON notifications (user_id, is_read, created_at DESC)",
+        "CREATE INDEX IF NOT EXISTS ix_prime_wallet_txns_wallet_created ON wallet_transactions (wallet_id, created_at DESC)",
+        "CREATE INDEX IF NOT EXISTS ix_prime_billing_admin_created ON billing_events (admin_id, created_at DESC)",
+    )
+    async with engine.begin() as conn:
+        for statement in statements:
+            await conn.execute(text(statement))
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await ensure_owner()
+    await ensure_scale_indexes()
     yield
 
 
@@ -2760,40 +2783,50 @@ async def directory_admins(
 ):
     page = max(1, page)
     page_size = max(10, min(page_size, 100))
-    stmt = select(User).where(User.role == Role.ADMIN)
-    count_stmt = select(func.count(User.id)).where(User.role == Role.ADMIN)
+
+    client_count_sq = (
+        select(func.count(Client.id))
+        .where(Client.admin_id == User.id)
+        .correlate(User)
+        .scalar_subquery()
+    )
+    plan_count_sq = (
+        select(func.count(AdminPlan.id))
+        .where(
+            AdminPlan.admin_id == User.id,
+            AdminPlan.enabled.is_(True),
+        )
+        .correlate(User)
+        .scalar_subquery()
+    )
+
+    filters = [User.role == Role.ADMIN]
     if q.strip():
         term = f"%{q.strip()}%"
-        clause = or_(User.username.ilike(term), User.display_name.ilike(term))
-        stmt = stmt.where(clause)
-        count_stmt = count_stmt.where(clause)
+        filters.append(or_(User.username.ilike(term), User.display_name.ilike(term)))
     if status_filter is not None:
-        stmt = stmt.where(User.status == status_filter)
-        count_stmt = count_stmt.where(User.status == status_filter)
+        filters.append(User.status == status_filter)
 
     order_by = User.created_at.asc() if sort == "oldest" else User.created_at.desc()
-    total = int(await db.scalar(count_stmt) or 0)
+    total = int(await db.scalar(select(func.count(User.id)).where(*filters)) or 0)
     rows = (
         await db.execute(
-            stmt.order_by(order_by)
+            select(
+                User,
+                Wallet,
+                client_count_sq.label("client_count"),
+                plan_count_sq.label("plan_count"),
+            )
+            .outerjoin(Wallet, Wallet.owner_user_id == User.id)
+            .where(*filters)
+            .order_by(order_by)
             .offset((page - 1) * page_size)
             .limit(page_size)
         )
-    ).scalars()
+    ).all()
+
     items = []
-    for admin in rows:
-        wallet = await db.scalar(select(Wallet).where(Wallet.owner_user_id == admin.id))
-        client_count = int(
-            await db.scalar(select(func.count(Client.id)).where(Client.admin_id == admin.id)) or 0
-        )
-        plan_count = int(
-            await db.scalar(
-                select(func.count(AdminPlan.id)).where(
-                    AdminPlan.admin_id == admin.id,
-                    AdminPlan.enabled.is_(True),
-                )
-            ) or 0
-        )
+    for admin, wallet, client_count, plan_count in rows:
         items.append({
             "id": str(admin.id),
             "username": admin.username,
@@ -2803,8 +2836,8 @@ async def directory_admins(
             "wallet_balance_toman": str(wallet.balance_toman if wallet else 0),
             "low_balance_threshold_toman": str(wallet.low_balance_threshold_toman if wallet else 0),
             "debt_limit_toman": str(wallet.debt_limit_toman if wallet else 0),
-            "client_count": client_count,
-            "plan_count": plan_count,
+            "client_count": int(client_count or 0),
+            "plan_count": int(plan_count or 0),
             "created_at": admin.created_at,
         })
     return {"items": items, **_page_meta(total, page, page_size)}
