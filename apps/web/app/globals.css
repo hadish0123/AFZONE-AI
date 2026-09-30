@@ -1370,3 +1370,520 @@ body:has(.primeLoginPage){padding-bottom:0!important;background:#031329!importan
     gap:14px!important;
   }
 }
+
+
+/* PRIMEVPN reseller directory reference */
+.v2App:has(.primeAdminsPage){
+  min-height:100svh;
+  background:
+    linear-gradient(rgba(22,105,201,.10) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(22,105,201,.10) 1px,transparent 1px),
+    radial-gradient(circle at 82% -4%,rgba(20,190,255,.18),transparent 24%),
+    radial-gradient(circle at 0% 34%,rgba(72,45,255,.12),transparent 33%),
+    linear-gradient(155deg,#061a3e 0%,#03162e 50%,#05152e 100%);
+  background-size:58px 58px,58px 58px,auto,auto,auto;
+}
+.v2App:has(.primeAdminsPage):before,
+.v2App:has(.primeAdminsPage):after{
+  content:"";
+  position:fixed;
+  z-index:0;
+  pointer-events:none;
+  border-radius:50%;
+}
+.v2App:has(.primeAdminsPage):before{
+  width:410px;height:410px;
+  top:-310px;left:-90px;
+  background:radial-gradient(circle at 72% 74%,rgba(38,104,255,.28),rgba(7,31,91,.08) 58%,transparent 60%);
+  border:1px solid rgba(58,142,255,.2);
+  box-shadow:0 0 80px rgba(45,72,255,.14);
+}
+.v2App:has(.primeAdminsPage):after{
+  width:350px;height:350px;
+  left:-230px;bottom:-210px;
+  background:radial-gradient(circle at 65% 35%,rgba(89,54,255,.38),rgba(22,38,132,.13) 55%,transparent 58%);
+  border:1px solid rgba(77,92,255,.2);
+}
+.v2Content:has(.primeAdminsPage){
+  position:relative;
+  z-index:2;
+  width:min(810px,calc(100% - 34px));
+  padding-top:4px;
+}
+.primeAdminPageHead{
+  margin:0 0 20px;
+  align-items:end;
+}
+.primeAdminPageHead>div:first-child{
+  margin-right:auto;
+  text-align:right;
+}
+.primeAdminPageHead .v2Eyebrow{
+  display:block;
+  font:500 11px/1 Arial,sans-serif;
+  letter-spacing:4px;
+  color:#25dcff;
+  margin-bottom:13px;
+}
+.primeAdminPageHead h1{
+  margin:0 0 8px;
+  color:#fff;
+  font-size:43px;
+  line-height:1.2;
+  font-weight:900;
+}
+.primeAdminPageHead p{
+  color:#8294bd;
+  font-size:16px;
+}
+.primeAdminPageHead .v2Create{
+  order:-1;
+  min-width:220px;
+  height:82px;
+  border-radius:18px;
+  border:1px solid rgba(255,209,91,.72);
+  color:#171108;
+  font-size:21px;
+  font-weight:900;
+  background:
+    radial-gradient(circle at 20% 25%,rgba(255,239,87,.66),transparent 34%),
+    radial-gradient(circle at 82% 74%,rgba(255,61,100,.34),transparent 40%),
+    linear-gradient(105deg,#ffd33d 0%,#ff9e39 45%,#ff5a66 100%);
+  box-shadow:
+    0 0 24px rgba(255,159,51,.38),
+    0 0 34px rgba(255,78,100,.14),
+    inset 0 0 16px rgba(255,255,255,.18);
+}
+.primeAdminPageHead .v2Create svg{
+  width:27px;height:27px;
+  stroke-width:3;
+}
+.primeAdminsPage{
+  direction:rtl;
+}
+.primeAdminDirectory{
+  position:relative;
+  overflow:hidden;
+  padding:28px 24px 22px;
+  border-radius:25px;
+  border:1px solid rgba(51,90,255,.78);
+  background:
+    linear-gradient(rgba(29,105,205,.045) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(29,105,205,.045) 1px,transparent 1px),
+    radial-gradient(circle at 89% 5%,rgba(82,58,255,.12),transparent 27%),
+    linear-gradient(155deg,rgba(7,33,71,.97),rgba(5,26,58,.985));
+  background-size:38px 38px,38px 38px,auto,auto;
+  box-shadow:
+    0 0 24px rgba(27,122,255,.22),
+    0 0 24px rgba(94,48,255,.17),
+    inset 0 0 20px rgba(255,255,255,.015);
+}
+.primeAdminDirectory:before{
+  content:"";
+  position:absolute;
+  inset:-1px;
+  border-radius:inherit;
+  pointer-events:none;
+  padding:1px;
+  background:linear-gradient(95deg,#26ddff 0%,#285fff 48%,#7c36ff 100%);
+  -webkit-mask:linear-gradient(#000 0 0) padding-box,linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;
+  mask-composite:exclude;
+  opacity:.85;
+}
+.primeAdminDirectory:after{
+  content:"";
+  position:absolute;
+  top:-1px;
+  left:9%;
+  right:9%;
+  height:2px;
+  pointer-events:none;
+  background:linear-gradient(90deg,transparent,#2adfff,#4557ff,#7b34ff,transparent);
+  box-shadow:0 0 14px rgba(41,174,255,.65);
+}
+.primeAdminSearchBox{
+  position:relative;
+  z-index:1;
+  min-height:96px;
+  display:grid;
+  grid-template-columns:68px 1fr;
+  align-items:center;
+  gap:14px;
+  padding:13px 15px;
+  overflow:hidden;
+  border-radius:19px;
+  border:1px solid rgba(78,57,255,.83);
+  background:
+    radial-gradient(circle at 13% 50%,rgba(26,218,255,.10),transparent 30%),
+    radial-gradient(circle at 90% 40%,rgba(111,45,255,.18),transparent 42%),
+    linear-gradient(145deg,rgba(6,32,69,.95),rgba(7,29,64,.95));
+  box-shadow:0 0 18px rgba(77,53,255,.17),inset 0 0 14px rgba(255,255,255,.018);
+}
+.primeAdminSearchBox:before{
+  content:"";
+  position:absolute;
+  top:-1px;
+  left:14%;
+  right:12%;
+  height:1px;
+  background:linear-gradient(90deg,transparent,#25ddff,#7043ff,transparent);
+  box-shadow:0 0 9px rgba(63,135,255,.55);
+}
+.primeAdminSearchBox>button{
+  position:relative;
+  z-index:3;
+  width:62px;height:62px;
+  border-radius:16px;
+  border:1px solid rgba(112,58,255,.72);
+  background:
+    radial-gradient(circle at 70% 18%,rgba(41,201,255,.14),transparent 45%),
+    linear-gradient(145deg,rgba(29,57,166,.72),rgba(74,23,164,.82));
+  color:#b88cff;
+  display:grid;
+  place-items:center;
+  box-shadow:0 0 14px rgba(103,52,255,.22);
+}
+.primeAdminSearchBox input{
+  position:relative;
+  z-index:3;
+  width:100%;
+  min-width:0;
+  border:0;
+  outline:0;
+  background:transparent;
+  color:#eef5ff;
+  text-align:right;
+  font:500 19px/1.3 Tahoma,Arial,sans-serif;
+}
+.primeAdminSearchBox input::placeholder{
+  color:#a5add0;
+  opacity:.92;
+}
+.primeAdminSearchWave{
+  position:absolute;
+  left:-8%;
+  right:-8%;
+  bottom:-26px;
+  height:72px;
+  opacity:.42;
+  background:
+    radial-gradient(120px 44px at 16% 55%,rgba(35,217,255,.42),transparent 70%),
+    radial-gradient(155px 48px at 47% 100%,rgba(65,101,255,.34),transparent 72%),
+    radial-gradient(105px 41px at 84% 72%,rgba(122,47,255,.40),transparent 70%);
+  border-top:1px solid rgba(54,160,255,.45);
+  filter:drop-shadow(0 -2px 9px rgba(47,107,255,.52));
+  transform:skewX(-10deg);
+}
+.primeAdminFilters{
+  position:relative;
+  z-index:1;
+  display:grid;
+  grid-template-columns:78px 1fr 1.2fr;
+  gap:15px;
+  margin:27px 0 28px;
+  direction:ltr;
+}
+.primeAdminFilterButton{
+  width:78px;
+  min-height:72px;
+  border-radius:16px;
+  border:1px solid rgba(40,145,255,.73);
+  background:linear-gradient(145deg,rgba(9,48,98,.94),rgba(6,31,71,.96));
+  color:#a8d4ff;
+  display:grid;
+  place-items:center;
+  box-shadow:0 0 14px rgba(35,105,255,.12);
+}
+.primeAdminFilters label{
+  position:relative;
+  display:flex;
+  align-items:center;
+  direction:rtl;
+  min-height:72px;
+  border-radius:16px;
+  border:1px solid rgba(48,98,255,.74);
+  background:
+    radial-gradient(circle at 90% 40%,rgba(95,43,255,.12),transparent 42%),
+    linear-gradient(145deg,rgba(7,35,76,.94),rgba(6,28,63,.96));
+  box-shadow:0 0 14px rgba(55,68,255,.12);
+}
+.primeAdminFilters select{
+  width:100%;
+  height:100%;
+  appearance:none;
+  border:0;
+  outline:0;
+  background:transparent;
+  color:#f0f5ff;
+  padding:0 22px 0 48px;
+  text-align:right;
+  font:500 18px/1 Tahoma,Arial,sans-serif;
+}
+.primeAdminFilters label>svg{
+  position:absolute;
+  left:17px;
+  transform:rotate(-90deg);
+  color:#88a7e8;
+  pointer-events:none;
+}
+.primeAdminTable{
+  position:relative;
+  z-index:1;
+  overflow:hidden;
+  min-height:620px;
+  border-radius:20px;
+  border:1px solid rgba(52,104,255,.72);
+  background:
+    radial-gradient(circle at 70% 100%,rgba(53,53,255,.08),transparent 38%),
+    linear-gradient(160deg,rgba(5,29,65,.94),rgba(4,24,55,.96));
+  box-shadow:inset 0 0 18px rgba(255,255,255,.015);
+  display:grid;
+  grid-template-rows:auto 1fr auto;
+}
+.primeAdminTableHead{
+  min-height:90px;
+  display:grid;
+  grid-template-columns:1.5fr .8fr .8fr .9fr;
+  align-items:center;
+  padding:0 30px;
+  border-bottom:1px solid rgba(39,95,192,.34);
+  color:#c3cff0;
+  font-size:15px;
+}
+.primeAdminTableHead span{text-align:center}
+.primeAdminTableHead span:first-child{text-align:right}
+.primeAdminTableBody{
+  position:relative;
+  min-height:410px;
+}
+.primeAdminRow{
+  width:100%;
+  min-height:76px;
+  display:grid;
+  grid-template-columns:1.5fr .8fr .8fr .9fr;
+  align-items:center;
+  gap:10px;
+  padding:12px 30px;
+  border:0;
+  border-bottom:1px solid rgba(39,95,192,.20);
+  background:transparent;
+  color:#dfe9fb;
+  text-align:center;
+  font:inherit;
+  cursor:pointer;
+}
+.primeAdminRow:hover{
+  background:linear-gradient(90deg,rgba(32,201,255,.035),rgba(101,43,255,.045));
+}
+.primeAdminRow>div{text-align:right}
+.primeAdminRow strong{
+  display:block;
+  color:#fff;
+  font-size:14px;
+}
+.primeAdminRow small{
+  display:block;
+  margin-top:5px;
+  color:#798cac;
+  font-size:9px;
+}
+.primeAdminRow>span{
+  color:#b8c6df;
+  font-size:12px;
+}
+.primeAdminStatus{
+  display:inline-flex!important;
+  justify-self:center;
+  width:max-content;
+  border-radius:99px;
+  padding:6px 10px;
+  font-size:9px!important;
+}
+.primeAdminStatus.active{
+  color:#61e7b2!important;
+  border:1px solid rgba(58,223,163,.20);
+  background:rgba(58,223,163,.06);
+}
+.primeAdminStatus.disabled{
+  color:#ff9aaf!important;
+  border:1px solid rgba(255,88,122,.18);
+  background:rgba(255,88,122,.05);
+}
+.primeAdminEmpty{
+  position:absolute;
+  inset:0;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:22px;
+  color:#b6c1db;
+}
+.primeAdminEmpty:before,
+.primeAdminEmpty:after{
+  content:"";
+  position:absolute;
+  left:-4%;
+  right:-4%;
+  height:120px;
+  pointer-events:none;
+}
+.primeAdminEmpty:before{
+  bottom:78px;
+  opacity:.30;
+  background:
+    radial-gradient(180px 60px at 23% 70%,rgba(50,84,255,.28),transparent 70%),
+    radial-gradient(220px 66px at 55% 100%,rgba(38,95,255,.22),transparent 72%);
+  border-top:1px solid rgba(54,92,255,.24);
+}
+.primeAdminEmpty:after{
+  bottom:-40px;
+  opacity:.34;
+  background:
+    radial-gradient(150px 62px at 15% 58%,rgba(77,45,255,.35),transparent 70%),
+    radial-gradient(200px 70px at 78% 62%,rgba(48,85,255,.34),transparent 72%);
+  border-top:1px solid rgba(72,63,255,.28);
+}
+.primeAdminEmpty>span{
+  position:relative;
+  z-index:2;
+  width:112px;height:112px;
+  border-radius:27px;
+  display:grid;
+  place-items:center;
+  color:#ad6fff;
+  background:
+    radial-gradient(circle at 75% 20%,rgba(41,193,255,.10),transparent 42%),
+    linear-gradient(145deg,rgba(22,56,150,.52),rgba(52,24,131,.66));
+  border:1px solid rgba(88,55,255,.54);
+  box-shadow:0 0 20px rgba(81,50,255,.20);
+}
+.primeAdminEmpty strong{
+  position:relative;
+  z-index:2;
+  color:#b8c4df;
+  font-size:24px;
+  font-weight:500;
+}
+.primeAdminPager{
+  min-height:102px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:15px;
+  padding:0 28px;
+  border-top:1px solid rgba(43,88,184,.30);
+  color:#aab7d1;
+  font-size:13px;
+}
+.primeAdminPager>div{
+  display:flex;
+  align-items:center;
+  gap:20px;
+  direction:ltr;
+}
+.primeAdminPager button{
+  width:60px;height:60px;
+  border-radius:15px;
+  border:1px solid rgba(45,102,255,.52);
+  background:linear-gradient(145deg,rgba(8,39,85,.94),rgba(6,29,66,.96));
+  color:#839bdf;
+  display:grid;
+  place-items:center;
+}
+.primeAdminPager button:disabled{opacity:.35}
+.primeAdminPager b{
+  font:500 18px/1 Arial,sans-serif;
+  color:#a3afd0;
+}
+
+@media(max-width:760px){
+  .v2Content:has(.primeAdminsPage){width:calc(100% - 22px)}
+  .primeAdminPageHead{
+    margin-bottom:15px;
+    align-items:center;
+  }
+  .primeAdminPageHead .v2Eyebrow{font-size:8px;letter-spacing:3px;margin-bottom:9px}
+  .primeAdminPageHead h1{font-size:34px;margin-bottom:4px}
+  .primeAdminPageHead p{font-size:13px}
+  .primeAdminPageHead .v2Create{
+    display:flex!important;
+    min-width:158px;
+    height:66px;
+    border-radius:16px;
+    font-size:17px;
+    padding:0 18px;
+  }
+  .primeAdminDirectory{padding:19px 15px 16px;border-radius:21px}
+  .primeAdminSearchBox{min-height:78px;grid-template-columns:55px 1fr;padding:10px 11px}
+  .primeAdminSearchBox>button{width:50px;height:50px;border-radius:14px}
+  .primeAdminSearchBox input{font-size:15px}
+  .primeAdminFilters{
+    grid-template-columns:62px 1fr 1.15fr;
+    gap:9px;
+    margin:19px 0 20px;
+  }
+  .primeAdminFilterButton{width:62px;min-height:60px;border-radius:14px}
+  .primeAdminFilters label{min-height:60px;border-radius:14px}
+  .primeAdminFilters select{font-size:14px;padding-right:15px}
+  .primeAdminTable{min-height:560px;border-radius:17px}
+  .primeAdminTableHead{
+    min-height:74px;
+    padding:0 18px;
+    font-size:12px;
+  }
+  .primeAdminRow{min-height:70px;padding:10px 18px}
+  .primeAdminEmpty>span{width:90px;height:90px;border-radius:23px}
+  .primeAdminEmpty strong{font-size:19px}
+  .primeAdminPager{min-height:86px;padding:0 18px}
+  .primeAdminPager button{width:50px;height:50px;border-radius:13px}
+}
+@media(max-width:430px){
+  .primeAdminPageHead{
+    gap:9px;
+  }
+  .primeAdminPageHead h1{font-size:30px}
+  .primeAdminPageHead .v2Create{
+    min-width:126px;
+    height:58px;
+    padding:0 13px;
+    font-size:15px;
+  }
+  .primeAdminPageHead .v2Create svg{width:22px;height:22px}
+  .primeAdminDirectory{padding:14px 11px 13px}
+  .primeAdminSearchBox{
+    min-height:68px;
+    grid-template-columns:48px 1fr;
+    gap:8px;
+  }
+  .primeAdminSearchBox>button{width:44px;height:44px;border-radius:12px}
+  .primeAdminSearchBox>button svg{width:20px}
+  .primeAdminSearchBox input{font-size:13px}
+  .primeAdminFilters{
+    grid-template-columns:54px 1fr 1.15fr;
+    gap:7px;
+  }
+  .primeAdminFilterButton{width:54px;min-height:54px}
+  .primeAdminFilters label{min-height:54px}
+  .primeAdminFilters select{font-size:12px;padding-right:11px;padding-left:34px}
+  .primeAdminFilters label>svg{left:10px;width:15px}
+  .primeAdminTableHead{
+    grid-template-columns:1.45fr .7fr .65fr .9fr;
+    padding:0 11px;
+    font-size:10px;
+  }
+  .primeAdminRow{
+    grid-template-columns:1.45fr .7fr .65fr .9fr;
+    padding:9px 11px;
+  }
+  .primeAdminRow strong{font-size:11px}
+  .primeAdminRow small{font-size:7px}
+  .primeAdminRow>span{font-size:10px}
+  .primeAdminStatus{font-size:7px!important;padding:5px 7px}
+  .primeAdminEmpty strong{font-size:16px}
+  .primeAdminPager{padding:0 11px;font-size:10px}
+  .primeAdminPager>div{gap:10px}
+  .primeAdminPager button{width:42px;height:42px}
+  .primeAdminPager b{font-size:14px}
+}
