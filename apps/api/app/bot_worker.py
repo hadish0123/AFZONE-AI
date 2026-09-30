@@ -380,13 +380,13 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
         retail = Decimal(admin_plan.retail_price_per_gib_toman if admin_plan else plan.base_price_per_gib_toman)
         amount = retail * quota
 
-        text = (
-            f"🧾 <b>پیش‌فاکتور</b>\n\n"
-            f"پلن: {plan.name}\n"
-            f"حجم: {quota.normalize()} GB\n"
-            f"مدت: {'بدون انقضا' if not duration else str(duration) + ' روز'}\n"
-            f"مبلغ: <b>{money_text(amount)}</b>\n"
-            f"موجودی کیف پول: {money_text(customer.wallet_balance_toman)}"
+        text = brand_title(
+            "پیش‌فاکتور",
+            f"📦 پلن: <b>{plan.name}</b>\n"
+            f"📊 حجم: <b>{quota.normalize()} GB</b>\n"
+            f"📅 مدت: <b>{'بدون انقضا' if not duration else str(duration) + ' روز'}</b>\n"
+            f"💳 مبلغ: <b>{money_text(amount)}</b>\n"
+            f"👛 موجودی کیف پول: <b>{money_text(customer.wallet_balance_toman)}</b>",
         )
         kb = InlineKeyboardBuilder()
         if bot_row.customer_wallet_enabled:
@@ -467,18 +467,23 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
                 ) or 0)
                 wallet = await db.scalar(select(Wallet).where(Wallet.owner_user_id == admin.id))
                 await callback.message.answer(
-                    "📊 <b>داشبورد نماینده</b>\n\n"
-                    f"مشتری‌ها: {customers}\n"
-                    f"سفارش‌ها: {orders}\n"
-                    f"رسید منتظر: {pending}\n"
-                    f"کیف پول: {money_text(wallet.balance_toman if wallet else 0)}",
+                    brand_title(
+                        "داشبورد نماینده",
+                        f"👥 مشتری‌ها: <b>{customers}</b>\n"
+                        f"📦 سفارش‌ها: <b>{orders}</b>\n"
+                        f"🧾 رسیدهای در انتظار: <b>{pending}</b>\n"
+                        f"👛 کیف پول: <b>{money_text(wallet.balance_toman if wallet else 0)}</b>",
+                    ),
                     parse_mode="HTML",
                     reply_markup=manager_menu(),
                 )
             elif action == "wallet":
                 wallet = await db.scalar(select(Wallet).where(Wallet.owner_user_id == admin.id))
                 await callback.message.answer(
-                    f"💰 موجودی کیف پول نماینده:\n<b>{money_text(wallet.balance_toman if wallet else 0)}</b>",
+                    brand_title(
+                        "کیف پول نماینده",
+                        f"موجودی فعلی: <b>{money_text(wallet.balance_toman if wallet else 0)}</b>",
+                    ),
                     parse_mode="HTML",
                     reply_markup=manager_menu(),
                 )
