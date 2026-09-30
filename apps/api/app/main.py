@@ -732,3 +732,370 @@ async def delete_client(
     client.remote_payload = {**(client.remote_payload or {}), "deleted_remote": True}
     await db.commit()
     return None
+
+
+# ---- Payments, cards and wallet top-ups ------------------------------------
+
+import base64
+import hashlib
+import json
+
+from fastapi import File, Form, Response, UploadFile
+
+from app.core.security import decrypt_secret
+from app.models import (
+    Customer,
+    Payment,
+    PaymentMethod,
+    PaymentProfile,
+    PaymentReceipt,
+    PaymentStatus,
+)
+from app.services.audit import write_audit
+from app.services.customer_wallet import apply_customer_wallet_transaction
+
+
+class PaymentProfileIn(BaseModel):
+    card_number: str | None = Field(default=None, max_length=40)
+    card_holder_name: str | None = Field(default=None, max_length=160)
+    card_instructions: str | None = Field(default=None, max_length=1000)
+    card_to_card_enabled: bool = True
+    gateway_provider: str | None = Field(default=None, max_length=80)
+    gateway_credentials: dict | None = None
+    gateway_enabled: bool = False
+
+
+class PaymentReviewIn(BaseModel):
+    approved: bool
+    note: str | None = Field(default=None, max_length=500)
+
+
+async def _get_or_create_payment_profile(db: AsyncSession, user_id: uuid.UUID) -> PaymentProfile:
+    profile = await db.scalar(
+        select(PaymentProfile).where(PaymentProfile.owner_user_id == user_id)
+    )
+    if profile is None:
+        profile = PaymentProfile(owner_user_id=user_id)
+        db.add(profile)
+        await db.flush()
+    return profile
+
+
+def _payment_profile_public(profile: PaymentProfile) -> dict:
+    return {
+        "card_number": profile.card_number,
+        "card_holder_name": profile.card_holder_name,
+        "card_instructions": profile.card_instructions,
+        "card_to_card_enabled": profile.card_to_card_enabled,
+        "gateway_provider": profile.gateway_provider,
+        "gateway_enabled": profile.gateway_enabled,
+        "gateway_configured": bool(profile.encrypted_gateway_credentials),
+    }
+
+
+@app.get(f"{settings.api_prefix}/payment-profile")
+async def get_payment_profile(
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    profile = await _get_or_create_payment_profile(db, user.id)
+    await db.commit()
+    return _payment_profile_public(profile)
+
+
+@app.put(f"{settings.api_prefix}/payment-profile")
+async def update_payment_profile(
+    payload: PaymentProfileIn,
+    request: Request,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    profile = await _get_or_create_payment_profile(db, user.id)
+    before = _payment_profile_public(profile)
+
+    profile.card_number = payload.card_number
+    profile.card_holder_name = payload.card_holder_name
+    profile.card_instructions = payload.card_instructions
+    profile.card_to_card_enabled = payload.card_to_card_enabled
+    profile.gateway_provider = payload.gateway_provider
+    profile.gateway_enabled = payload.gateway_enabled
+
+    if payload.gateway_credentials is not None:
+        profile.encrypted_gateway_credentials = encrypt_secret(
+            json.dumps(payload.gateway_credentials, separators=(",", ":"))
+        )
+
+    if profile.gateway_enabled and (
+        not profile.gateway_provider or not profile.encrypted_gateway_credentials
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="gateway provider and credentials are required before enabling gateway",
+        )
+
+    await write_audit(
+        db,
+        actor_user_id=user.id,
+        action="payment_profile.update",
+        entity_type="payment_profile",
+        entity_id=str(profile.id),
+        before_data=before,
+        after_data=_payment_profile_public(profile),
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+    return _payment_profile_public(profile)
+
+
+@app.get(f"{settings.api_prefix}/wallet/topup-options")
+async def admin_wallet_topup_options(
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if user.role != Role.ADMIN:
+        raise HTTPException(status_code=403, detail="admin access required")
+
+    owner = await db.scalar(select(User).where(User.role == Role.OWNER))
+    if owner is None:
+        raise HTTPException(status_code=503, detail="owner account unavailable")
+
+    profile = await _get_or_create_payment_profile(db, owner.id)
+    await db.commit()
+    return {
+        "card_to_card": {
+            "enabled": profile.card_to_card_enabled and bool(profile.card_number),
+            "card_number": profile.card_number if profile.card_to_card_enabled else None,
+            "card_holder_name": profile.card_holder_name if profile.card_to_card_enabled else None,
+            "instructions": profile.card_instructions if profile.card_to_card_enabled else None,
+        },
+        "gateway": {
+            "enabled": profile.gateway_enabled and bool(profile.gateway_provider),
+            "provider": profile.gateway_provider if profile.gateway_enabled else None,
+        },
+    }
+
+
+@app.post(f"{settings.api_prefix}/wallet/topups/card", status_code=201)
+async def create_admin_card_topup(
+    request: Request,
+    amount_toman: Decimal = Form(..., gt=0),
+    receipt: UploadFile = File(...),
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if user.role != Role.ADMIN:
+        raise HTTPException(status_code=403, detail="admin access required")
+
+    owner = await db.scalar(select(User).where(User.role == Role.OWNER))
+    if owner is None:
+        raise HTTPException(status_code=503, detail="owner account unavailable")
+    profile = await _get_or_create_payment_profile(db, owner.id)
+    if not profile.card_to_card_enabled or not profile.card_number:
+        raise HTTPException(status_code=409, detail="owner card-to-card payment is disabled")
+
+    allowed_types = {"image/jpeg", "image/png", "image/webp", "application/pdf"}
+    if receipt.content_type not in allowed_types:
+        raise HTTPException(status_code=415, detail="receipt must be JPG, PNG, WEBP or PDF")
+
+    raw = await receipt.read(5 * 1024 * 1024 + 1)
+    if not raw:
+        raise HTTPException(status_code=400, detail="receipt file is empty")
+    if len(raw) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="receipt file exceeds 5 MB")
+
+    payment = Payment(
+        admin_id=user.id,
+        customer_id=None,
+        order_id=None,
+        method=PaymentMethod.CARD_TO_CARD,
+        status=PaymentStatus.AWAITING_REVIEW,
+        amount_toman=amount_toman,
+        provider="card_to_card",
+        meta={
+            "purpose": "admin_wallet_topup",
+            "destination_owner_id": str(owner.id),
+        },
+    )
+    db.add(payment)
+    await db.flush()
+
+    db.add(
+        PaymentReceipt(
+            payment_id=payment.id,
+            original_name=(receipt.filename or "")[:255] or None,
+            mime_type=receipt.content_type or "application/octet-stream",
+            size_bytes=len(raw),
+            sha256=hashlib.sha256(raw).hexdigest(),
+            encrypted_data=encrypt_secret(base64.b64encode(raw).decode()),
+        )
+    )
+
+    await write_audit(
+        db,
+        actor_user_id=user.id,
+        action="wallet.card_topup.request",
+        entity_type="payment",
+        entity_id=str(payment.id),
+        after_data={"amount_toman": str(amount_toman), "status": payment.status.value},
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+    return {
+        "payment_id": str(payment.id),
+        "status": payment.status.value,
+        "amount_toman": str(payment.amount_toman),
+        "message": "receipt submitted for owner review",
+    }
+
+
+@app.get(f"{settings.api_prefix}/payments")
+async def list_payments(
+    status_filter: PaymentStatus | None = None,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    stmt = select(Payment).order_by(Payment.created_at.desc())
+    if user.role == Role.ADMIN:
+        stmt = stmt.where(Payment.admin_id == user.id)
+    if status_filter is not None:
+        stmt = stmt.where(Payment.status == status_filter)
+
+    rows = (await db.execute(stmt)).scalars()
+    return [{
+        "id": str(item.id),
+        "admin_id": str(item.admin_id),
+        "customer_id": str(item.customer_id) if item.customer_id else None,
+        "order_id": str(item.order_id) if item.order_id else None,
+        "method": item.method.value,
+        "status": item.status.value,
+        "amount_toman": str(item.amount_toman),
+        "provider": item.provider,
+        "provider_reference": item.provider_reference,
+        "purpose": (item.meta or {}).get("purpose"),
+        "created_at": item.created_at,
+        "reviewed_at": item.reviewed_at,
+    } for item in rows]
+
+
+@app.get(f"{settings.api_prefix}/payments/{{payment_id}}/receipt")
+async def get_payment_receipt(
+    payment_id: uuid.UUID,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    payment = await db.scalar(select(Payment).where(Payment.id == payment_id))
+    if not payment:
+        raise HTTPException(status_code=404, detail="payment not found")
+    if user.role == Role.ADMIN and payment.admin_id != user.id:
+        raise HTTPException(status_code=403, detail="payment belongs to another admin")
+
+    receipt = await db.scalar(
+        select(PaymentReceipt).where(PaymentReceipt.payment_id == payment.id)
+    )
+    if not receipt:
+        raise HTTPException(status_code=404, detail="receipt not found")
+
+    raw = base64.b64decode(decrypt_secret(receipt.encrypted_data))
+    return Response(
+        content=raw,
+        media_type=receipt.mime_type,
+        headers={
+            "Content-Disposition": f'inline; filename="{receipt.original_name or "receipt"}"',
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+@app.post(f"{settings.api_prefix}/payments/{{payment_id}}/review")
+async def review_payment(
+    payment_id: uuid.UUID,
+    payload: PaymentReviewIn,
+    request: Request,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from datetime import datetime, timezone
+
+    payment = await db.scalar(
+        select(Payment).where(Payment.id == payment_id).with_for_update()
+    )
+    if not payment:
+        raise HTTPException(status_code=404, detail="payment not found")
+    if payment.status != PaymentStatus.AWAITING_REVIEW:
+        raise HTTPException(status_code=409, detail="payment is not awaiting review")
+
+    purpose = (payment.meta or {}).get("purpose")
+
+    if purpose == "admin_wallet_topup":
+        if user.role != Role.OWNER:
+            raise HTTPException(status_code=403, detail="owner review required")
+        if payload.approved:
+            wallet = await db.scalar(
+                select(Wallet).where(Wallet.owner_user_id == payment.admin_id)
+            )
+            if not wallet:
+                raise HTTPException(status_code=409, detail="admin wallet not found")
+            txn = await apply_wallet_transaction(
+                db,
+                wallet_id=wallet.id,
+                txn_type=WalletTxnType.CARD_TOPUP,
+                amount_toman=payment.amount_toman,
+                idempotency_key=f"payment:{payment.id}",
+                actor_user_id=user.id,
+                reference_type="payment",
+                reference_id=str(payment.id),
+                description=payload.note or "Approved card-to-card wallet top-up",
+            )
+            payment.status = PaymentStatus.PAID
+            payment.provider_reference = str(txn.id)
+        else:
+            payment.status = PaymentStatus.REJECTED
+
+    elif purpose == "customer_wallet_topup":
+        if user.role == Role.ADMIN and payment.admin_id != user.id:
+            raise HTTPException(status_code=403, detail="customer belongs to another admin")
+        if user.role not in {Role.ADMIN, Role.OWNER}:
+            raise HTTPException(status_code=403, detail="review access denied")
+        if not payment.customer_id:
+            raise HTTPException(status_code=409, detail="customer payment has no customer")
+        if payload.approved:
+            txn = await apply_customer_wallet_transaction(
+                db,
+                customer_id=payment.customer_id,
+                amount_toman=payment.amount_toman,
+                txn_type="card_topup",
+                idempotency_key=f"payment:{payment.id}",
+                reference_type="payment",
+                reference_id=str(payment.id),
+                description=payload.note or "Approved customer card-to-card top-up",
+            )
+            payment.status = PaymentStatus.PAID
+            payment.provider_reference = str(txn.id)
+        else:
+            payment.status = PaymentStatus.REJECTED
+
+    else:
+        raise HTTPException(status_code=400, detail="payment purpose cannot be manually reviewed")
+
+    payment.reviewed_at = datetime.now(timezone.utc)
+    payment.reviewed_by = user.id
+
+    await write_audit(
+        db,
+        actor_user_id=user.id,
+        action="payment.review",
+        entity_type="payment",
+        entity_id=str(payment.id),
+        before_data={"status": PaymentStatus.AWAITING_REVIEW.value},
+        after_data={
+            "status": payment.status.value,
+            "approved": payload.approved,
+            "purpose": purpose,
+        },
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+    return {"id": str(payment.id), "status": payment.status.value}
