@@ -13,6 +13,7 @@ from aiogram import Bot, Dispatcher, F, Router
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.storage.base import DefaultKeyBuilder
 from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.types import CallbackQuery, InlineKeyboardButton, Message, Update
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -248,7 +249,12 @@ async def store_receipt(
 
 
 def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
-    storage = RedisStorage.from_url(settings.redis_url, state_ttl=3600, data_ttl=3600)
+    storage = RedisStorage.from_url(
+        settings.redis_url,
+        state_ttl=3600,
+        data_ttl=3600,
+        key_builder=DefaultKeyBuilder(with_bot_id=True),
+    )
     dp = Dispatcher(storage=storage)
     router = Router(name=f"primevpn-bot-{bot_id}")
 
