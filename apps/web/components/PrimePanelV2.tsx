@@ -308,7 +308,7 @@ const exactNumber = (value: string | number | null | undefined) => {
 
 const money = (value?: string | number | null) => {
   const parsed = exactNumber(value);
-  return new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 4 }).format(Number.isFinite(parsed) ? parsed : 0) + " تومان";
+  return new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 0 }).format(Number.isFinite(parsed) ? parsed : 0) + " تومان";
 };
 
 const gib = (bytes?: number | null) =>
