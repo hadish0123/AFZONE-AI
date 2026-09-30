@@ -117,3 +117,19 @@ def test_bot_catalog_is_global_and_panel_has_no_native_prompts_or_selects():
     assert "<select" not in web_source
     assert "تخصیص این پلن به نماینده" not in web_source
     assert "فقط پلن‌های انتخاب‌شده در این Bot" not in web_source
+
+
+def test_deleted_clients_are_hidden_from_current_panel_views():
+    deleted_filter = 'Client.remote_payload["deleted_remote"].astext.is_distinct_from("true")'
+    for name in (
+        "list_clients",
+        "directory_clients",
+        "dashboard_summary",
+        "directory_admins",
+    ):
+        assert deleted_filter in function_block(MAIN, name), name
+
+
+def test_deleted_client_username_can_be_recreated():
+    block = function_block(MAIN, "create_client")
+    assert 'Client.remote_payload["deleted_remote"].astext.is_distinct_from("true")' in block
