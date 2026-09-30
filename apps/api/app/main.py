@@ -841,7 +841,7 @@ async def list_clients(
     user: User = Depends(current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    stmt = select(Client).order_by(Client.created_at.desc())
+    stmt = select(Client).where(Client.remote_payload["deleted_remote"].astext.is_distinct_from("true")).order_by(Client.created_at.desc())
     if user.role == Role.ADMIN:
         stmt = stmt.where(Client.admin_id == user.id)
     rows = (await db.execute(stmt)).scalars()
@@ -900,6 +900,7 @@ async def create_client(
         select(Client).where(
             Client.connection_id == connection.id,
             Client.username == payload.username,
+            Client.remote_payload["deleted_remote"].astext.is_distinct_from("true"),
         )
     ):
         raise HTTPException(status_code=409, detail="client username already exists locally")
@@ -2388,8 +2389,11 @@ async def dashboard_summary(
 ):
     today = datetime.now(timezone.utc).date()
 
-    client_stmt = select(func.count(Client.id))
-    active_client_stmt = select(func.count(Client.id)).where(Client.status == ClientStatus.ACTIVE)
+    client_stmt = select(func.count(Client.id)).where(Client.remote_payload["deleted_remote"].astext.is_distinct_from("true"))
+    active_client_stmt = select(func.count(Client.id)).where(
+        Client.status == ClientStatus.ACTIVE,
+        Client.remote_payload["deleted_remote"].astext.is_distinct_from("true"),
+    )
     usage_stmt = select(func.coalesce(func.sum(Client.last_lifetime_usage_bytes), 0))
     order_stmt = select(func.count(Order.id))
     today_order_stmt = select(func.count(Order.id)).where(
@@ -2933,7 +2937,10 @@ async def directory_admins(
 
     client_count_sq = (
         select(func.count(Client.id))
-        .where(Client.admin_id == User.id)
+        .where(
+            Client.admin_id == User.id,
+            Client.remote_payload["deleted_remote"].astext.is_distinct_from("true"),
+        )
         .correlate(User)
         .scalar_subquery()
     )
@@ -3000,7 +3007,7 @@ async def directory_clients(
 ):
     page = max(1, page)
     page_size = max(10, min(page_size, 100))
-    filters = []
+    filters = [Client.remote_payload["deleted_remote"].astext.is_distinct_from("true")]
     if user.role == Role.ADMIN:
         filters.append(Client.admin_id == user.id)
     elif admin_id:
