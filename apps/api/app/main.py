@@ -816,13 +816,41 @@ async def update_client(
     connection = await db.scalar(
         select(PasarGuardConnection).where(PasarGuardConnection.id == client.connection_id)
     )
+    if not connection or not connection.enabled:
+        raise HTTPException(status_code=409, detail="PasarGuard connection unavailable")
+
+    plan = await db.scalar(select(Plan).where(Plan.id == client.plan_id)) if client.plan_id else None
+    if user.role == Role.ADMIN:
+        if not plan:
+            raise HTTPException(status_code=409, detail="client is not attached to a managed plan")
+        assignment = await db.scalar(
+            select(AdminPlan).where(
+                AdminPlan.admin_id == user.id,
+                AdminPlan.plan_id == plan.id,
+                AdminPlan.enabled.is_(True),
+            )
+        )
+        if not assignment:
+            raise HTTPException(status_code=403, detail="plan is no longer assigned to this admin")
+        if payload.quota_gib is not None or payload.duration_days_from_now is not None:
+            wallet = await db.scalar(select(Wallet).where(Wallet.owner_user_id == user.id))
+            if wallet and wallet.block_renewals_when_low and wallet.balance_toman <= wallet.low_balance_threshold_toman:
+                raise HTTPException(status_code=402, detail="admin wallet is below the renewal threshold")
+
     pg = PasarGuardClient(connection.base_url, connection.encrypted_api_token)
 
     remote_update = {}
     if payload.quota_gib is not None:
+        if plan:
+            if plan.min_quota_gib is not None and payload.quota_gib < plan.min_quota_gib:
+                raise HTTPException(status_code=400, detail="quota below plan minimum")
+            if plan.max_quota_gib is not None and payload.quota_gib > plan.max_quota_gib:
+                raise HTTPException(status_code=400, detail="quota above plan maximum")
         client.quota_bytes = int(payload.quota_gib * Decimal(1024**3))
         remote_update["data_limit"] = client.quota_bytes
     if payload.duration_days_from_now is not None:
+        if plan and plan.max_duration_days is not None and payload.duration_days_from_now > plan.max_duration_days:
+            raise HTTPException(status_code=400, detail="duration above plan maximum")
         client.expires_at = datetime.now(timezone.utc) + timedelta(days=payload.duration_days_from_now)
         remote_update["expire"] = client.expires_at.isoformat()
     if payload.hwid_limit is not None:
