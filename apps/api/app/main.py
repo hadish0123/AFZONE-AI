@@ -1088,6 +1088,32 @@ async def review_payment(
         else:
             payment.status = PaymentStatus.REJECTED
 
+    elif purpose == "order_card":
+        from app.models import Order, OrderStatus
+        from app.services.orders import provision_paid_order
+
+        if user.role == Role.ADMIN and payment.admin_id != user.id:
+            raise HTTPException(status_code=403, detail="order belongs to another admin")
+        if user.role not in {Role.ADMIN, Role.OWNER}:
+            raise HTTPException(status_code=403, detail="review access denied")
+        if not payment.order_id:
+            raise HTTPException(status_code=409, detail="payment has no order")
+
+        order = await db.scalar(
+            select(Order).where(Order.id == payment.order_id).with_for_update()
+        )
+        if not order:
+            raise HTTPException(status_code=404, detail="order not found")
+
+        if payload.approved:
+            payment.status = PaymentStatus.PAID
+            order.status = OrderStatus.PAID
+            client = await provision_paid_order(db, order.id)
+            payment.provider_reference = str(client.id)
+        else:
+            payment.status = PaymentStatus.REJECTED
+            order.status = OrderStatus.CANCELLED
+
     else:
         raise HTTPException(status_code=400, detail="payment purpose cannot be manually reviewed")
 
