@@ -19,6 +19,7 @@ from app.core.config import get_settings
 from app.core.security import decrypt_secret, encrypt_secret
 from app.db import SessionLocal
 from app.models import (
+    AccountStatus,
     AdminPlan,
     Client,
     Customer,
@@ -31,6 +32,7 @@ from app.models import (
     PaymentReceipt,
     PaymentStatus,
     Plan,
+    Role,
     TelegramBot,
     TelegramBotPlan,
     User,
@@ -355,12 +357,19 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
     async def manager_context(tg_user):
         async with SessionLocal() as db:
             bot_row = await db.scalar(
-                select(TelegramBot).where(TelegramBot.id == bot_id)
+                select(TelegramBot).where(
+                    TelegramBot.id == bot_id,
+                    TelegramBot.enabled.is_(True),
+                )
             )
             if not bot_row:
                 return None, None
             admin = await db.scalar(
-                select(User).where(User.id == bot_row.admin_id)
+                select(User).where(
+                    User.id == bot_row.admin_id,
+                    User.role == Role.ADMIN,
+                    User.status == AccountStatus.ACTIVE,
+                )
             )
             if not admin or not admin.telegram_id or int(admin.telegram_id) != int(tg_user.id):
                 return None, None
@@ -510,8 +519,8 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
                     order = await db.scalar(
                         select(Order).where(Order.id == payment.order_id).with_for_update()
                     )
-                    if not order:
-                        raise ValueError("order not found")
+                    if not order or order.admin_id != admin.id or order.admin_id != payment.admin_id:
+                        raise ValueError("order ownership mismatch")
                     payment.status = PaymentStatus.PAID
                     order.status = OrderStatus.PAID
                     client = await provision_paid_order(db, order.id)
@@ -519,6 +528,14 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
                 elif approved and purpose == "customer_wallet_topup":
                     if not payment.customer_id:
                         raise ValueError("customer missing")
+                    customer = await db.scalar(
+                        select(Customer).where(
+                            Customer.id == payment.customer_id,
+                            Customer.admin_id == admin.id,
+                        )
+                    )
+                    if not customer:
+                        raise ValueError("customer ownership mismatch")
                     txn = await apply_customer_wallet_transaction(
                         db,
                         customer_id=payment.customer_id,
