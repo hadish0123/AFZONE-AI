@@ -4553,3 +4553,29 @@ body:has(.primeLoginPage){padding-bottom:0!important;background:#031329!importan
   .primeAutoBadge{font-size:8px;padding:6px 8px}
   .primeBotSyncState{margin:0 10px 10px;padding:11px}
 }
+
+
+/* Plan management polish */
+.primePlanDelete{
+  border-color:rgba(255,71,112,.44)!important;
+  color:#ff9ab1!important;
+  background:
+    radial-gradient(circle at 14% 20%,rgba(255,75,112,.12),transparent 34%),
+    linear-gradient(145deg,rgba(74,14,37,.42),rgba(44,9,27,.44))!important;
+}
+.primePlanDelete:hover{
+  border-color:rgba(255,92,127,.72)!important;
+  box-shadow:0 0 20px rgba(255,73,111,.11)!important;
+}
+.primePlanCreateForm .primeFieldHint{
+  color:#70dff7;
+  margin-top:7px;
+}
+.primeActionDialog label{
+  display:grid;
+  gap:7px;
+}
+.primeActionDialog input[type="text"]{
+  direction:rtl;
+  text-align:right;
+}
