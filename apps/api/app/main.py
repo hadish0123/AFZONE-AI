@@ -1933,6 +1933,216 @@ async def update_admin(
     return {"ok": True}
 
 
+@app.delete(f"{settings.api_prefix}/admins/{{admin_id}}/hard")
+async def hard_delete_admin(
+    admin_id: uuid.UUID,
+    request: Request,
+    owner: User = Depends(require_owner),
+    db: AsyncSession = Depends(get_db),
+):
+    """Permanently purge one representative and all tenant-owned data."""
+
+    from sqlalchemy import delete, update
+    from app.models import (
+        AdminPlan,
+        AuditLog,
+        AuthSession,
+        BankCard,
+        BillingEvent,
+        Client,
+        Customer,
+        CustomerWalletTransaction,
+        Notification,
+        Order,
+        Payment,
+        PaymentProfile,
+        PaymentReceipt,
+        TelegramBot,
+        TelegramBotPlan,
+        UsageCheckpoint,
+        UserSecurity,
+        Wallet,
+        WalletTransaction,
+    )
+
+    admin = await db.scalar(
+        select(User).where(
+            User.id == admin_id,
+            User.role == Role.ADMIN,
+        ).with_for_update()
+    )
+    if not admin:
+        raise HTTPException(status_code=404, detail="admin not found")
+
+    clients = (
+        await db.execute(select(Client).where(Client.admin_id == admin_id))
+    ).scalars().all()
+    bots = (
+        await db.execute(select(TelegramBot).where(TelegramBot.admin_id == admin_id))
+    ).scalars().all()
+    customers = (
+        await db.execute(select(Customer).where(Customer.admin_id == admin_id))
+    ).scalars().all()
+    orders = (
+        await db.execute(select(Order).where(Order.admin_id == admin_id))
+    ).scalars().all()
+    payments = (
+        await db.execute(select(Payment).where(Payment.admin_id == admin_id))
+    ).scalars().all()
+    wallet = await db.scalar(select(Wallet).where(Wallet.owner_user_id == admin_id))
+
+    client_ids = [row.id for row in clients]
+    bot_ids = [row.id for row in bots]
+    customer_ids = [row.id for row in customers]
+    order_ids = [row.id for row in orders]
+    payment_ids = [row.id for row in payments]
+    wallet_ids = [wallet.id] if wallet else []
+
+    # First remove every still-existing PasarGuard user. A remote 404 means
+    # the user is already gone and is safe to ignore.
+    connection_ids = {row.connection_id for row in clients}
+    connections = {}
+    if connection_ids:
+        connection_rows = (
+            await db.execute(
+                select(PasarGuardConnection).where(PasarGuardConnection.id.in_(connection_ids))
+            )
+        ).scalars().all()
+        connections = {row.id: row for row in connection_rows}
+
+    for client in clients:
+        if (client.remote_payload or {}).get("deleted_remote") is True:
+            continue
+        connection = connections.get(client.connection_id)
+        if connection is None:
+            raise HTTPException(
+                status_code=409,
+                detail=f"PasarGuard connection missing for client {client.username}",
+            )
+        try:
+            await PasarGuardClient(
+                connection.base_url,
+                connection.encrypted_api_token,
+            ).delete_user(client.username)
+        except PasarGuardError as exc:
+            if "HTTP 404" not in str(exc):
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"failed to delete PasarGuard client {client.username}: {exc}",
+                ) from exc
+
+    # Telegram bots cannot be deleted through Bot API, but their webhook and
+    # pending updates can be removed before their local records are purged.
+    telegram_cleanup_failures: list[str] = []
+    for row in bots:
+        bot = None
+        try:
+            bot = AiogramBot(token=decrypt_secret(row.encrypted_token))
+            await bot.delete_webhook(drop_pending_updates=True)
+        except Exception:
+            telegram_cleanup_failures.append(str(row.id))
+        finally:
+            if bot is not None:
+                try:
+                    await bot.session.close()
+                except Exception:
+                    pass
+
+    # Remove references from shared/global rows rather than deleting shared
+    # records that may belong to other tenants.
+    await db.execute(
+        update(Payment)
+        .where(Payment.reviewed_by == admin_id, Payment.admin_id != admin_id)
+        .values(reviewed_by=None)
+    )
+    await db.execute(
+        update(WalletTransaction)
+        .where(WalletTransaction.actor_user_id == admin_id)
+        .values(actor_user_id=None)
+    )
+    await db.execute(
+        update(PasarGuardConnection)
+        .where(PasarGuardConnection.created_by == admin_id)
+        .values(created_by=owner.id)
+    )
+
+    # Explicit dependent-row deletion keeps this purge safe even for databases
+    # created before newer ON DELETE CASCADE constraints existed.
+    if payment_ids:
+        await db.execute(
+            delete(PaymentReceipt).where(PaymentReceipt.payment_id.in_(payment_ids))
+        )
+    if customer_ids:
+        await db.execute(
+            delete(CustomerWalletTransaction).where(
+                CustomerWalletTransaction.customer_id.in_(customer_ids)
+            )
+        )
+    if client_ids:
+        await db.execute(
+            delete(UsageCheckpoint).where(UsageCheckpoint.client_id.in_(client_ids))
+        )
+    if bot_ids:
+        await db.execute(
+            delete(TelegramBotPlan).where(TelegramBotPlan.bot_id.in_(bot_ids))
+        )
+
+    # Audit rows are not financial ledger state. Purge actions performed by the
+    # representative plus audit entries attached to entities owned by them.
+    audit_entity_ids = [
+        str(admin_id),
+        *(str(value) for value in client_ids),
+        *(str(value) for value in bot_ids),
+        *(str(value) for value in customer_ids),
+        *(str(value) for value in order_ids),
+        *(str(value) for value in payment_ids),
+        *(str(value) for value in wallet_ids),
+    ]
+    await db.execute(delete(AuditLog).where(AuditLog.actor_user_id == admin_id))
+    for offset in range(0, len(audit_entity_ids), 500):
+        chunk = audit_entity_ids[offset : offset + 500]
+        if chunk:
+            await db.execute(delete(AuditLog).where(AuditLog.entity_id.in_(chunk)))
+
+    await db.execute(delete(BillingEvent).where(BillingEvent.admin_id == admin_id))
+    await db.execute(delete(Payment).where(Payment.admin_id == admin_id))
+    await db.execute(delete(Order).where(Order.admin_id == admin_id))
+    await db.execute(delete(Customer).where(Customer.admin_id == admin_id))
+    await db.execute(delete(Client).where(Client.admin_id == admin_id))
+    await db.execute(delete(TelegramBot).where(TelegramBot.admin_id == admin_id))
+    await db.execute(delete(AdminPlan).where(AdminPlan.admin_id == admin_id))
+
+    if wallet_ids:
+        await db.execute(
+            delete(WalletTransaction).where(WalletTransaction.wallet_id.in_(wallet_ids))
+        )
+    await db.execute(delete(Wallet).where(Wallet.owner_user_id == admin_id))
+    await db.execute(delete(PaymentProfile).where(PaymentProfile.owner_user_id == admin_id))
+    await db.execute(delete(BankCard).where(BankCard.owner_user_id == admin_id))
+    await db.execute(delete(Notification).where(Notification.user_id == admin_id))
+    await db.execute(delete(AuthSession).where(AuthSession.user_id == admin_id))
+    await db.execute(delete(UserSecurity).where(UserSecurity.user_id == admin_id))
+
+    await db.delete(admin)
+    await db.commit()
+
+    # Close any cached bot runtimes after the rows disappear from the database.
+    for bot_id in bot_ids:
+        await enqueue_telegram_bot_reconcile(request, bot_id)
+
+    return {
+        "ok": True,
+        "deleted": {
+            "clients": len(client_ids),
+            "bots": len(bot_ids),
+            "customers": len(customer_ids),
+            "orders": len(order_ids),
+            "payments": len(payment_ids),
+        },
+        "telegram_cleanup_failures": telegram_cleanup_failures,
+    }
+
+
 @app.post(f"{settings.api_prefix}/admins/{{admin_id}}/wallet/adjust")
 async def adjust_admin_wallet(
     admin_id: uuid.UUID,
