@@ -1887,3 +1887,532 @@ body:has(.primeLoginPage){padding-bottom:0!important;background:#031329!importan
   .primeAdminPager button{width:42px;height:42px}
   .primeAdminPager b{font-size:14px}
 }
+
+
+/* PRIMEVPN clients directory + create dialogs */
+.v2App:has(.primeClientsPage){
+  min-height:100svh;
+  background:
+    linear-gradient(rgba(22,105,201,.10) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(22,105,201,.10) 1px,transparent 1px),
+    radial-gradient(circle at 82% -4%,rgba(20,190,255,.18),transparent 24%),
+    radial-gradient(circle at 0% 34%,rgba(72,45,255,.12),transparent 33%),
+    linear-gradient(155deg,#061a3e 0%,#03162e 50%,#05152e 100%);
+  background-size:58px 58px,58px 58px,auto,auto,auto;
+}
+.v2Content:has(.primeClientsPage){
+  position:relative;
+  z-index:2;
+  width:min(810px,calc(100% - 34px));
+  padding-top:4px;
+}
+.primeClientPageHead{
+  margin:0 0 20px;
+  align-items:end;
+}
+.primeClientPageHead>div:first-child{
+  margin-right:auto;
+  text-align:right;
+}
+.primeClientPageHead .v2Eyebrow{
+  display:block;
+  font:500 11px/1 Arial,sans-serif;
+  letter-spacing:4px;
+  color:#25dcff;
+  margin-bottom:13px;
+}
+.primeClientPageHead h1{
+  margin:0 0 8px;
+  color:#fff;
+  font-size:43px;
+  line-height:1.2;
+  font-weight:900;
+}
+.primeClientPageHead p{
+  color:#8294bd;
+  font-size:16px;
+}
+.primeClientPageHead .v2Create{
+  order:-1;
+  min-width:220px;
+  height:82px;
+  border-radius:18px;
+  border:1px solid rgba(255,209,91,.72);
+  color:#171108;
+  font-size:21px;
+  font-weight:900;
+  background:
+    radial-gradient(circle at 20% 25%,rgba(255,239,87,.66),transparent 34%),
+    radial-gradient(circle at 82% 74%,rgba(255,61,100,.34),transparent 40%),
+    linear-gradient(105deg,#ffd33d 0%,#ff9e39 45%,#ff5a66 100%);
+  box-shadow:
+    0 0 24px rgba(255,159,51,.38),
+    0 0 34px rgba(255,78,100,.14),
+    inset 0 0 16px rgba(255,255,255,.18);
+}
+.primeClientPageHead .v2Create svg{width:27px;height:27px;stroke-width:3}
+
+.primeClientsPage{direction:rtl}
+.primeClientDirectory{
+  position:relative;
+  overflow:hidden;
+  padding:28px 24px 22px;
+  border-radius:25px;
+  border:1px solid rgba(51,90,255,.78);
+  background:
+    linear-gradient(rgba(29,105,205,.045) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(29,105,205,.045) 1px,transparent 1px),
+    radial-gradient(circle at 89% 5%,rgba(82,58,255,.12),transparent 27%),
+    linear-gradient(155deg,rgba(7,33,71,.97),rgba(5,26,58,.985));
+  background-size:38px 38px,38px 38px,auto,auto;
+  box-shadow:
+    0 0 24px rgba(27,122,255,.22),
+    0 0 24px rgba(94,48,255,.17),
+    inset 0 0 20px rgba(255,255,255,.015);
+}
+.primeClientDirectory:before{
+  content:"";
+  position:absolute;
+  inset:-1px;
+  border-radius:inherit;
+  pointer-events:none;
+  padding:1px;
+  background:linear-gradient(95deg,#26ddff 0%,#285fff 48%,#7c36ff 100%);
+  -webkit-mask:linear-gradient(#000 0 0) padding-box,linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;
+  mask-composite:exclude;
+  opacity:.85;
+}
+.primeClientDirectory:after{
+  content:"";
+  position:absolute;
+  top:-1px;
+  left:9%;
+  right:9%;
+  height:2px;
+  background:linear-gradient(90deg,transparent,#2adfff,#4557ff,#7b34ff,transparent);
+  box-shadow:0 0 14px rgba(41,174,255,.65);
+}
+.primeClientSearchBox{
+  position:relative;
+  z-index:1;
+  min-height:96px;
+  display:grid;
+  grid-template-columns:68px 1fr;
+  align-items:center;
+  gap:14px;
+  padding:13px 15px;
+  overflow:hidden;
+  border-radius:19px;
+  border:1px solid rgba(78,57,255,.83);
+  background:
+    radial-gradient(circle at 13% 50%,rgba(26,218,255,.10),transparent 30%),
+    radial-gradient(circle at 90% 40%,rgba(111,45,255,.18),transparent 42%),
+    linear-gradient(145deg,rgba(6,32,69,.95),rgba(7,29,64,.95));
+  box-shadow:0 0 18px rgba(77,53,255,.17),inset 0 0 14px rgba(255,255,255,.018);
+}
+.primeClientSearchBox:before{
+  content:"";
+  position:absolute;
+  top:-1px;left:14%;right:12%;height:1px;
+  background:linear-gradient(90deg,transparent,#25ddff,#7043ff,transparent);
+  box-shadow:0 0 9px rgba(63,135,255,.55);
+}
+.primeClientSearchBox>button{
+  position:relative;
+  z-index:3;
+  width:62px;height:62px;
+  border-radius:16px;
+  border:1px solid rgba(112,58,255,.72);
+  background:
+    radial-gradient(circle at 70% 18%,rgba(41,201,255,.14),transparent 45%),
+    linear-gradient(145deg,rgba(29,57,166,.72),rgba(74,23,164,.82));
+  color:#b88cff;
+  display:grid;
+  place-items:center;
+  box-shadow:0 0 14px rgba(103,52,255,.22);
+}
+.primeClientSearchBox input{
+  position:relative;
+  z-index:3;
+  width:100%;
+  border:0;
+  outline:0;
+  background:transparent;
+  color:#eef5ff;
+  text-align:right;
+  font:500 19px/1.3 Tahoma,Arial,sans-serif;
+}
+.primeClientSearchBox input::placeholder{color:#a5add0;opacity:.92}
+.primeClientSearchWave{
+  position:absolute;
+  left:-8%;right:-8%;bottom:-26px;
+  height:72px;
+  opacity:.42;
+  background:
+    radial-gradient(120px 44px at 16% 55%,rgba(35,217,255,.42),transparent 70%),
+    radial-gradient(155px 48px at 47% 100%,rgba(65,101,255,.34),transparent 72%),
+    radial-gradient(105px 41px at 84% 72%,rgba(122,47,255,.40),transparent 70%);
+  border-top:1px solid rgba(54,160,255,.45);
+  filter:drop-shadow(0 -2px 9px rgba(47,107,255,.52));
+  transform:skewX(-10deg);
+}
+.primeClientFilters{
+  position:relative;
+  z-index:1;
+  display:grid;
+  grid-template-columns:78px 1fr 1.1fr 1.15fr;
+  gap:12px;
+  margin:27px 0 28px;
+  direction:ltr;
+}
+.primeClientFilterButton{
+  width:78px;
+  min-height:72px;
+  border-radius:16px;
+  border:1px solid rgba(40,145,255,.73);
+  background:linear-gradient(145deg,rgba(9,48,98,.94),rgba(6,31,71,.96));
+  color:#a8d4ff;
+  display:grid;
+  place-items:center;
+  box-shadow:0 0 14px rgba(35,105,255,.12);
+}
+.primeClientFilters label{
+  position:relative;
+  display:flex;
+  align-items:center;
+  direction:rtl;
+  min-height:72px;
+  border-radius:16px;
+  border:1px solid rgba(48,98,255,.74);
+  background:
+    radial-gradient(circle at 90% 40%,rgba(95,43,255,.12),transparent 42%),
+    linear-gradient(145deg,rgba(7,35,76,.94),rgba(6,28,63,.96));
+  box-shadow:0 0 14px rgba(55,68,255,.12);
+}
+.primeClientFilters select{
+  width:100%;
+  height:100%;
+  appearance:none;
+  border:0;
+  outline:0;
+  background:transparent;
+  color:#f0f5ff;
+  padding:0 18px 0 44px;
+  text-align:right;
+  font:500 16px/1 Tahoma,Arial,sans-serif;
+}
+.primeClientFilters label>svg{
+  position:absolute;
+  left:14px;
+  transform:rotate(-90deg);
+  color:#88a7e8;
+  pointer-events:none;
+}
+
+.primeClientTable{
+  position:relative;
+  z-index:1;
+  overflow:hidden;
+  min-height:620px;
+  border-radius:20px;
+  border:1px solid rgba(52,104,255,.72);
+  background:
+    radial-gradient(circle at 70% 100%,rgba(53,53,255,.08),transparent 38%),
+    linear-gradient(160deg,rgba(5,29,65,.94),rgba(4,24,55,.96));
+  box-shadow:inset 0 0 18px rgba(255,255,255,.015);
+  display:grid;
+  grid-template-rows:auto 1fr auto;
+}
+.primeClientTableHead{
+  min-height:90px;
+  display:grid;
+  grid-template-columns:1.35fr 1fr 1fr .8fr .9fr;
+  align-items:center;
+  padding:0 22px;
+  border-bottom:1px solid rgba(39,95,192,.34);
+  color:#c3cff0;
+  font-size:14px;
+}
+.primeClientTableHead span{text-align:center}
+.primeClientTableHead span:first-child{text-align:right}
+.primeClientTableBody{position:relative;min-height:410px}
+.primeClientRow{
+  width:100%;
+  min-height:76px;
+  display:grid;
+  grid-template-columns:1.35fr 1fr 1fr .8fr .9fr;
+  align-items:center;
+  gap:8px;
+  padding:12px 22px;
+  border:0;
+  border-bottom:1px solid rgba(39,95,192,.20);
+  background:transparent;
+  color:#dfe9fb;
+  text-align:center;
+  font:inherit;
+  cursor:pointer;
+}
+.primeClientRow:hover{background:linear-gradient(90deg,rgba(32,201,255,.035),rgba(101,43,255,.045))}
+.primeClientRow>div{text-align:right}
+.primeClientRow strong{display:block;color:#fff;font-size:13px}
+.primeClientRow small{display:block;margin-top:5px;color:#798cac;font-size:8px}
+.primeClientRow>span{color:#b8c6df;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.primeClientEmpty{
+  position:absolute;
+  inset:0;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:22px;
+  color:#b6c1db;
+}
+.primeClientEmpty:before,
+.primeClientEmpty:after{
+  content:"";
+  position:absolute;
+  left:-4%;right:-4%;
+  height:120px;
+  pointer-events:none;
+}
+.primeClientEmpty:before{
+  bottom:78px;
+  opacity:.30;
+  background:
+    radial-gradient(180px 60px at 23% 70%,rgba(50,84,255,.28),transparent 70%),
+    radial-gradient(220px 66px at 55% 100%,rgba(38,95,255,.22),transparent 72%);
+  border-top:1px solid rgba(54,92,255,.24);
+}
+.primeClientEmpty:after{
+  bottom:-40px;
+  opacity:.34;
+  background:
+    radial-gradient(150px 62px at 15% 58%,rgba(77,45,255,.35),transparent 70%),
+    radial-gradient(200px 70px at 78% 62%,rgba(48,85,255,.34),transparent 72%);
+  border-top:1px solid rgba(72,63,255,.28);
+}
+.primeClientEmpty>span{
+  position:relative;
+  z-index:2;
+  width:112px;height:112px;
+  border-radius:27px;
+  display:grid;
+  place-items:center;
+  color:#ad6fff;
+  background:
+    radial-gradient(circle at 75% 20%,rgba(41,193,255,.10),transparent 42%),
+    linear-gradient(145deg,rgba(22,56,150,.52),rgba(52,24,131,.66));
+  border:1px solid rgba(88,55,255,.54);
+  box-shadow:0 0 20px rgba(81,50,255,.20);
+}
+.primeClientEmpty strong{
+  position:relative;
+  z-index:2;
+  color:#b8c4df;
+  font-size:24px;
+  font-weight:500;
+}
+.primeClientPager{
+  min-height:102px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:15px;
+  padding:0 28px;
+  border-top:1px solid rgba(43,88,184,.30);
+  color:#aab7d1;
+  font-size:13px;
+}
+.primeClientPager>div{display:flex;align-items:center;gap:20px;direction:ltr}
+.primeClientPager button{
+  width:60px;height:60px;
+  border-radius:15px;
+  border:1px solid rgba(45,102,255,.52);
+  background:linear-gradient(145deg,rgba(8,39,85,.94),rgba(6,29,66,.96));
+  color:#839bdf;
+  display:grid;
+  place-items:center;
+}
+.primeClientPager button:disabled{opacity:.35}
+.primeClientPager b{font:500 18px/1 Arial,sans-serif;color:#a3afd0}
+
+/* themed add-admin / add-client dialogs */
+.v2Modal:has(.primeCreateForm){
+  position:relative;
+  overflow:hidden;
+  border-radius:26px;
+  border:1px solid rgba(67,78,255,.82);
+  background:
+    linear-gradient(rgba(27,104,201,.05) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(27,104,201,.05) 1px,transparent 1px),
+    radial-gradient(circle at 90% 7%,rgba(99,48,255,.18),transparent 30%),
+    linear-gradient(155deg,#082044,#061733);
+  background-size:34px 34px,34px 34px,auto,auto;
+  box-shadow:
+    0 0 30px rgba(33,140,255,.22),
+    0 0 34px rgba(100,44,255,.16);
+}
+.v2Modal:has(.primeCreateForm):before{
+  content:"";
+  position:absolute;
+  inset:-1px;
+  border-radius:inherit;
+  padding:1px;
+  pointer-events:none;
+  background:linear-gradient(95deg,#24dbff,#315bff,#7c36ff);
+  -webkit-mask:linear-gradient(#000 0 0) padding-box,linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;
+  mask-composite:exclude;
+}
+.v2Modal:has(.primeCreateForm)>header{
+  position:relative;
+  min-height:84px;
+  border-bottom:1px solid rgba(43,112,218,.30);
+  background:rgba(5,24,52,.45);
+}
+.v2Modal:has(.primeCreateForm)>header:after{
+  content:"";
+  position:absolute;
+  left:12%;right:12%;bottom:-1px;height:1px;
+  background:linear-gradient(90deg,transparent,#2bdfff,#7444ff,transparent);
+  box-shadow:0 0 10px rgba(49,164,255,.5);
+}
+.v2Modal:has(.primeCreateForm)>header>strong{
+  font-size:20px;
+  color:#fff;
+}
+.primeCreateForm{
+  display:grid;
+  gap:15px!important;
+}
+.primeCreateForm label,
+.primeCreateForm .v2Picker{
+  color:#b8c7e3!important;
+  font-size:12px!important;
+}
+.primeCreateForm input,
+.primeCreateForm select{
+  min-height:58px;
+  border-radius:14px!important;
+  border:1px solid rgba(51,102,255,.62)!important;
+  background:
+    radial-gradient(circle at 90% 30%,rgba(97,43,255,.10),transparent 43%),
+    linear-gradient(145deg,rgba(6,31,68,.94),rgba(5,26,58,.96))!important;
+  color:#f1f6ff!important;
+  padding:0 15px!important;
+  box-shadow:inset 0 0 12px rgba(255,255,255,.015);
+}
+.primeCreateForm input:focus,
+.primeCreateForm select:focus{
+  outline:none;
+  border-color:#35dfff!important;
+  box-shadow:0 0 0 3px rgba(44,217,255,.07),0 0 15px rgba(44,217,255,.10);
+}
+.primeCreateForm .v2Picker{
+  border:1px solid rgba(48,93,255,.34)!important;
+  background:rgba(4,25,57,.45)!important;
+  border-radius:16px!important;
+  padding:12px!important;
+}
+.primeCreateForm .v2PickerSearch{
+  gap:8px;
+}
+.primeCreateForm .v2PickerSearch button{
+  min-width:92px;
+  border-radius:12px!important;
+  border:1px solid rgba(91,55,255,.65)!important;
+  background:linear-gradient(145deg,rgba(27,68,160,.72),rgba(75,28,168,.80))!important;
+  color:#d8e6ff!important;
+}
+.primeCreateForm>.v2Primary{
+  min-height:68px;
+  border-radius:16px!important;
+  border:1px solid rgba(255,209,91,.70)!important;
+  color:#171108!important;
+  font-size:17px!important;
+  font-weight:900!important;
+  background:
+    radial-gradient(circle at 20% 25%,rgba(255,239,87,.58),transparent 34%),
+    radial-gradient(circle at 82% 74%,rgba(255,61,100,.32),transparent 40%),
+    linear-gradient(105deg,#ffd33d 0%,#ff9e39 45%,#ff5a66 100%)!important;
+  box-shadow:0 0 20px rgba(255,159,51,.28),0 0 26px rgba(255,78,100,.10)!important;
+}
+
+@media(max-width:760px){
+  .v2Content:has(.primeClientsPage){width:calc(100% - 22px)}
+  .primeClientPageHead{margin-bottom:15px;align-items:center}
+  .primeClientPageHead .v2Eyebrow{font-size:8px;letter-spacing:3px;margin-bottom:9px}
+  .primeClientPageHead h1{font-size:34px;margin-bottom:4px}
+  .primeClientPageHead p{font-size:13px}
+  .primeClientPageHead .v2Create{
+    display:flex!important;
+    min-width:158px;
+    height:66px;
+    border-radius:16px;
+    font-size:17px;
+    padding:0 18px;
+  }
+  .primeClientDirectory{padding:19px 15px 16px;border-radius:21px}
+  .primeClientSearchBox{min-height:78px;grid-template-columns:55px 1fr;padding:10px 11px}
+  .primeClientSearchBox>button{width:50px;height:50px;border-radius:14px}
+  .primeClientSearchBox input{font-size:15px}
+  .primeClientFilters{
+    grid-template-columns:62px 1fr 1.05fr 1.1fr;
+    gap:8px;
+    margin:19px 0 20px;
+  }
+  .primeClientFilterButton{width:62px;min-height:60px;border-radius:14px}
+  .primeClientFilters label{min-height:60px;border-radius:14px}
+  .primeClientFilters select{font-size:12px;padding-right:12px}
+  .primeClientTable{min-height:560px;border-radius:17px}
+  .primeClientTableHead{min-height:74px;padding:0 12px;font-size:10px}
+  .primeClientRow{min-height:70px;padding:10px 12px}
+  .primeClientEmpty>span{width:90px;height:90px;border-radius:23px}
+  .primeClientEmpty strong{font-size:19px}
+  .primeClientPager{min-height:86px;padding:0 18px}
+  .primeClientPager button{width:50px;height:50px;border-radius:13px}
+}
+@media(max-width:430px){
+  .primeClientPageHead{gap:9px}
+  .primeClientPageHead h1{font-size:30px}
+  .primeClientPageHead .v2Create{
+    min-width:126px;
+    height:58px;
+    padding:0 13px;
+    font-size:15px;
+  }
+  .primeClientPageHead .v2Create svg{width:22px;height:22px}
+  .primeClientDirectory{padding:14px 10px 13px}
+  .primeClientSearchBox{min-height:68px;grid-template-columns:48px 1fr;gap:8px}
+  .primeClientSearchBox>button{width:44px;height:44px;border-radius:12px}
+  .primeClientSearchBox>button svg{width:20px}
+  .primeClientSearchBox input{font-size:13px}
+  .primeClientFilters{
+    grid-template-columns:52px repeat(3,minmax(0,1fr));
+    gap:6px;
+  }
+  .primeClientFilterButton{width:52px;min-height:52px}
+  .primeClientFilters label{min-height:52px}
+  .primeClientFilters select{font-size:10px;padding-right:8px;padding-left:26px}
+  .primeClientFilters label>svg{left:7px;width:13px}
+  .primeClientTableHead,
+  .primeClientRow{
+    grid-template-columns:1.35fr .9fr .9fr .75fr .85fr;
+    padding-left:8px;
+    padding-right:8px;
+  }
+  .primeClientTableHead{font-size:8.5px}
+  .primeClientRow strong{font-size:10px}
+  .primeClientRow small{font-size:7px}
+  .primeClientRow>span{font-size:8.5px}
+  .primeClientEmpty strong{font-size:16px}
+  .primeClientPager{padding:0 10px;font-size:10px}
+  .primeClientPager>div{gap:9px}
+  .primeClientPager button{width:42px;height:42px}
+  .primeClientPager b{font-size:14px}
+  .v2Modal:has(.primeCreateForm)>header>strong{font-size:17px}
+  .primeCreateForm input,
+  .primeCreateForm select{min-height:54px}
+  .primeCreateForm>.v2Primary{min-height:60px;font-size:15px!important}
+}
