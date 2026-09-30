@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from app.core.config import get_settings
 from app.db import SessionLocal
-from app.models import Client, ClientStatus, PasarGuardConnection
+from app.models import Client, ClientStatus, Notification, PasarGuardConnection, User, Wallet
 from app.services.billing import BillingAnomaly, bill_lifetime_usage
 from app.services.pasarguard import PasarGuardClient, PasarGuardError
 from app.services.wallet import InsufficientFundsError
@@ -96,6 +96,29 @@ async def sync_one_client(client_id) -> None:
             await db.commit()
 
             if event is not None:
+                wallet = await db.scalar(
+                    select(Wallet).where(Wallet.owner_user_id == client.admin_id)
+                )
+                if wallet and wallet.balance_toman <= wallet.low_balance_threshold_toman:
+                    from datetime import date
+                    key = f"low-balance:{client.admin_id}:{date.today().isoformat()}"
+                    exists = await db.scalar(
+                        select(Notification).where(Notification.dedupe_key == key)
+                    )
+                    if not exists:
+                        db.add(Notification(
+                            user_id=client.admin_id,
+                            kind="low_balance",
+                            title="موجودی کیف پول پایین است",
+                            message=(
+                                f"موجودی فعلی {wallet.balance_toman} تومان است. "
+                                "برای جلوگیری از توقف ساخت یا تمدید سرویس، کیف پول را شارژ کنید."
+                            ),
+                            entity_type="wallet",
+                            entity_id=str(wallet.id),
+                            dedupe_key=key,
+                        ))
+                        await db.commit()
                 logger.info(
                     "Billed client=%s admin=%s delta_bytes=%s amount_toman=%s",
                     client.username,
@@ -109,6 +132,26 @@ async def sync_one_client(client_id) -> None:
             logger.error("Billing suspended for client=%s: %s", client.username, exc)
         except InsufficientFundsError:
             await db.rollback()
+            admin = await db.scalar(select(User).where(User.id == client.admin_id))
+            if admin:
+                key = f"billing-deferred:{client.id}"
+                exists = await db.scalar(
+                    select(Notification).where(Notification.dedupe_key == key)
+                )
+                if not exists:
+                    db.add(Notification(
+                        user_id=admin.id,
+                        kind="billing_deferred",
+                        title="هزینه مصرف در انتظار تسویه",
+                        message=(
+                            f"مصرف کلاینت {client.username} از سقف موجودی/بدهی کیف پول عبور کرده "
+                            "و هزینه آن در چرخه بعدی دوباره محاسبه می‌شود."
+                        ),
+                        entity_type="client",
+                        entity_id=str(client.id),
+                        dedupe_key=key,
+                    ))
+                    await db.commit()
             logger.warning(
                 "Billing deferred for client=%s: admin wallet debt limit exceeded",
                 client.username,
