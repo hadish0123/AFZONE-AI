@@ -348,3 +348,59 @@ class AuditLog(Base):
     ip_address: Mapped[str | None] = mapped_column(String(80))
     user_agent: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class PaymentProfile(Base):
+    """Incoming payment settings owned by Owner or an Admin."""
+
+    __tablename__ = "payment_profiles"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True
+    )
+    card_number: Mapped[str | None] = mapped_column(String(40))
+    card_holder_name: Mapped[str | None] = mapped_column(String(160))
+    card_instructions: Mapped[str | None] = mapped_column(Text)
+    gateway_provider: Mapped[str | None] = mapped_column(String(80))
+    encrypted_gateway_credentials: Mapped[str | None] = mapped_column(Text)
+    gateway_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    card_to_card_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class PaymentReceipt(Base):
+    """Small encrypted card-to-card receipt stored in Postgres for V1."""
+
+    __tablename__ = "payment_receipts"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    payment_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("payments.id", ondelete="CASCADE"), unique=True, index=True
+    )
+    original_name: Mapped[str | None] = mapped_column(String(255))
+    mime_type: Mapped[str] = mapped_column(String(100))
+    size_bytes: Mapped[int] = mapped_column(Integer)
+    sha256: Mapped[str] = mapped_column(String(64), index=True)
+    encrypted_data: Mapped[str] = mapped_column(Text)
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class CustomerWalletTransaction(Base):
+    __tablename__ = "customer_wallet_transactions"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    customer_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("customers.id", ondelete="CASCADE"), index=True
+    )
+    amount_toman: Mapped[Decimal] = mapped_column(Numeric(20, 4))
+    balance_after_toman: Mapped[Decimal] = mapped_column(Numeric(20, 4))
+    txn_type: Mapped[str] = mapped_column(String(80), index=True)
+    idempotency_key: Mapped[str] = mapped_column(String(180), unique=True, index=True)
+    reference_type: Mapped[str | None] = mapped_column(String(80))
+    reference_id: Mapped[str | None] = mapped_column(String(160), index=True)
+    description: Mapped[str | None] = mapped_column(Text)
+    meta: Mapped[dict] = mapped_column(JSONB, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
