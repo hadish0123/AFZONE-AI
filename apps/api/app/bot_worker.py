@@ -80,8 +80,22 @@ class SaleFlow(StatesGroup):
     wallet_topup_receipt = State()
 
 
+PERSIAN_DIGITS = str.maketrans("0123456789,", "۰۱۲۳۴۵۶۷۸۹٬")
+
+
+def number_text(value) -> str:
+    dec = Decimal(str(value or 0))
+    if dec == dec.to_integral_value():
+        raw = f"{int(dec):,}"
+    else:
+        raw = f"{dec:,.4f}".rstrip("0").rstrip(".")
+    return raw.translate(PERSIAN_DIGITS)
+
+
 def money_text(value) -> str:
-    return f"{int(Decimal(value)):,} تومان"
+    # All monetary values in PRIMEVPN are stored and displayed in Toman.
+    # There is deliberately no Rial↔Toman or ×1000 conversion here.
+    return f"{number_text(value)} تومان"
 
 
 def brand_title(title: str, subtitle: str | None = None) -> str:
@@ -310,7 +324,11 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
         kb.button(text="↩️ منوی اصلی", callback_data="main:home")
         kb.adjust(1)
         await state.clear()
-        await target.answer("پلن موردنظر را انتخاب کنید:", reply_markup=kb.as_markup())
+        await target.answer(
+            brand_title("انتخاب پلن", "پلن موردنظر را برای خرید انتخاب کنید."),
+            parse_mode="HTML",
+            reply_markup=kb.as_markup(),
+        )
 
     async def show_quota(callback: CallbackQuery, state: FSMContext, plan_id: uuid.UUID):
         bot_row, _ = await get_context(callback.from_user)
@@ -333,7 +351,11 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
             kb.button(text="✏️ حجم دلخواه", callback_data="quota:custom")
         kb.button(text="↩️ پلن‌ها", callback_data="main:buy")
         kb.adjust(3, 3, 1)
-        await callback.message.edit_text("حجم سرویس را انتخاب کنید:", reply_markup=kb.as_markup())
+        await callback.message.edit_text(
+            brand_title("انتخاب حجم", "حجم سرویس را انتخاب کنید."),
+            parse_mode="HTML",
+            reply_markup=kb.as_markup(),
+        )
         await callback.answer()
 
     async def show_duration(target, state: FSMContext):
@@ -484,9 +506,9 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
                 await callback.message.answer(
                     brand_title(
                         "داشبورد نماینده",
-                        f"👥 مشتری‌ها: <b>{customers}</b>\n"
-                        f"📦 سفارش‌ها: <b>{orders}</b>\n"
-                        f"🧾 رسیدهای در انتظار: <b>{pending}</b>\n"
+                        f"👥 مشتری‌ها: <b>{number_text(customers)}</b>\n"
+                        f"📦 سفارش‌ها: <b>{number_text(orders)}</b>\n"
+                        f"🧾 رسیدهای در انتظار: <b>{number_text(pending)}</b>\n"
                         f"👛 کیف پول: <b>{money_text(wallet.balance_toman if wallet else 0)}</b>",
                     ),
                     parse_mode="HTML",
@@ -516,7 +538,7 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
                     lines.append(
                         f"\n• {str(order.id)[:8]} · {status_text(order.status)}\n"
                         f"{money_text(order.retail_amount_toman)} · "
-                        f"{Decimal(order.quota_bytes) / Decimal(1024**3):.0f} GB"
+                        f"{number_text(Decimal(order.quota_bytes) / Decimal(1024**3))} GB"
                     )
                 await callback.message.answer(
                     "\n".join(lines) if rows else "سفارشی وجود ندارد.",
@@ -933,7 +955,11 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
                 )
             ).all()
         if not rows:
-            await callback.message.answer("هنوز سرویس فعالی ندارید.", reply_markup=main_menu())
+            await callback.message.answer(
+                brand_title("سرویس‌های من", "هنوز سرویس فعالی ندارید."),
+                parse_mode="HTML",
+                reply_markup=main_menu(),
+            )
         else:
             text = [brand_title("سرویس‌های شما")]
             for order, client in rows:
@@ -949,7 +975,10 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
     @router.callback_query(F.data == "main:topup")
     async def topup_start(callback: CallbackQuery, state: FSMContext):
         await state.set_state(SaleFlow.wallet_topup_amount)
-        await callback.message.answer("مبلغ شارژ کیف پول را به تومان وارد کنید؛ مثلاً 100000")
+        await callback.message.answer(
+            brand_title("شارژ کیف پول", "مبلغ را دقیقاً به تومان وارد کنید؛ مثال: <b>100000</b> یعنی ۱۰۰٬۰۰۰ تومان."),
+            parse_mode="HTML",
+        )
         await callback.answer()
 
     @router.message(SaleFlow.wallet_topup_amount, F.text)
@@ -977,7 +1006,8 @@ def build_dispatcher(bot_id: uuid.UUID) -> Dispatcher:
         kb.adjust(1)
         await state.set_state(None)
         await message.answer(
-            f"مبلغ شارژ: {money_text(amount)}\nروش پرداخت را انتخاب کنید:",
+            brand_title("روش پرداخت", f"مبلغ شارژ: <b>{money_text(amount)}</b>\nروش پرداخت را انتخاب کنید."),
+            parse_mode="HTML",
             reply_markup=kb.as_markup(),
         )
 
