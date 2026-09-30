@@ -649,7 +649,10 @@ async def list_plans(
         "group_id": str(plan.group_id),
         "cost_per_gib_toman": str(plan.base_price_per_gib_toman),
         "retail_price_per_gib_toman": str(
-            admin_plan.retail_price_per_gib_toman
+            max(
+                plan.base_price_per_gib_toman,
+                admin_plan.retail_price_per_gib_toman,
+            )
             if admin_plan
             else plan.base_price_per_gib_toman
         ),
@@ -696,7 +699,9 @@ async def list_admin_assignments(
         "bot_visible": True,
         "base_price_per_gib_toman": str(plan.base_price_per_gib_toman),
         "retail_price_per_gib_toman": str(
-            item.retail_price_per_gib_toman if item else plan.base_price_per_gib_toman
+            max(plan.base_price_per_gib_toman, item.retail_price_per_gib_toman)
+            if item
+            else plan.base_price_per_gib_toman
         ),
         "automatic": item is None,
     } for plan, item in rows]
@@ -3324,7 +3329,7 @@ async def get_bot_catalog(
         "name": plan.name,
         "base_price_per_gib_toman": str(plan.base_price_per_gib_toman),
         "retail_price_per_gib_toman": str(
-            assignment.retail_price_per_gib_toman
+            max(plan.base_price_per_gib_toman, assignment.retail_price_per_gib_toman)
             if assignment
             else plan.base_price_per_gib_toman
         ),
